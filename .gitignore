@@ -1,0 +1,24 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+
+# Build
+build/
+
+# Android
+android/local.properties
+
+# iOS
+ios/Flutter/Flutter.podspec
+ios/.symlinks/
+ios/Pods/
+
+# IDE
+.idea/
+.vscode/
+
+# Reference
+_reference/

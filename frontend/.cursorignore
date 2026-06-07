@@ -1,0 +1,9 @@
+build/
+android/
+ios/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+web/
+test/
