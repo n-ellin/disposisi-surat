@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 
 class DateRangeFilterResult {
@@ -93,19 +94,17 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
   late TextEditingController _startController;
   late TextEditingController _endController;
 
-  // Track error state per field
   bool _startError = false;
   bool _endError = false;
 
-  static const List<String> _chips = [
-    'Hari ini',
-    'Bulan ini',
-    'Pilih tanggal',
-  ];
+  static const List<String> _chips = ['Hari ini', 'Bulan ini', 'Pilih tanggal'];
 
-  // Batas tahun: 5 tahun ke belakang s/d sekarang
   final DateTime _firstDate = DateTime(DateTime.now().year - 5, 1, 1);
-  final DateTime _lastDate = DateTime.now();
+  final DateTime _lastDate = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+  );
 
   @override
   void initState() {
@@ -145,16 +144,18 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
       final year = int.parse(parts[2]);
       if (day < 1 || day > 31) return null;
       if (month < 1 || month > 12) return null;
-      // Validasi range tahun dinamis (5 tahun ke belakang s/d sekarang)
       if (year < _firstDate.year || year > _lastDate.year) return null;
-      return DateTime(year, month, day);
+      final date = DateTime(year, month, day);
+      // Validasi tidak melebihi hari ini
+      if (date.isAfter(_lastDate)) return null;
+      return date;
     } catch (_) {
       return null;
     }
   }
 
   void _onChipTap(String label) {
-    final now = DateTime.now();
+    final now = _lastDate; // pakai _lastDate supaya konsisten (date only)
     setState(() {
       selectedChip = label;
       _startError = false;
@@ -178,36 +179,29 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
     });
   }
 
-  // Buka date picker → setelah pilih, isi controller & update state
+  // Buka custom calendar picker pakai table_calendar
   Future<void> _openDatePicker({required bool isStart}) async {
-    final initial = isStart
-        ? (tempStart ?? DateTime.now())
-        : (tempEnd ?? DateTime.now());
+    final initial = isStart ? (tempStart ?? _lastDate) : (tempEnd ?? _lastDate);
 
-    final picked = await showDatePicker(
+    // Clamp initial ke range valid
+    final safeInitial = initial.isAfter(_lastDate)
+        ? _lastDate
+        : initial.isBefore(_firstDate)
+        ? _firstDate
+        : initial;
+
+    final picked = await showDialog<DateTime>(
       context: context,
-      initialDate: initial.isBefore(_firstDate)
-          ? _firstDate
-          : initial.isAfter(_lastDate)
-              ? _lastDate
-              : initial,
-      firstDate: _firstDate,
-      lastDate: isStart ? _lastDate : _lastDate,
-      locale: const Locale('id', 'ID'), // format Indonesia
-      builder: (context, child) {
-        // Warna date picker ikut AppColors
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppColors.bluePrimary,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (ctx) => _TableCalendarDialog(
+        initialDate: safeInitial,
+        firstDate: _firstDate,
+        lastDate: _lastDate,
+        // Untuk field "Sampai", firstDate-nya minimal = tempStart
+        minSelectableDate: (!isStart && tempStart != null)
+            ? tempStart!
+            : _firstDate,
+      ),
     );
 
     if (picked == null) return;
@@ -217,10 +211,11 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
         tempStart = picked;
         _startController.text = _dateToString(picked);
         _startError = false;
-        // Reset endDate kalau start > end
+        // Reset end kalau start > end
         if (tempEnd != null && picked.isAfter(tempEnd!)) {
           tempEnd = null;
           _endController.clear();
+          _endError = false;
         }
       } else {
         tempEnd = picked;
@@ -232,7 +227,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
 
   void _onManualChanged(String val, {required bool isStart}) {
     if (val.length < 10) {
-      // Belum lengkap → clear state, no error shown yet
       setState(() {
         if (isStart) {
           tempStart = null;
@@ -245,7 +239,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
       return;
     }
 
-    // Lengkap 10 karakter → validasi
     final date = _parseDate(val);
     setState(() {
       if (isStart) {
@@ -255,7 +248,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
         } else {
           _startError = false;
           tempStart = date;
-          // Reset end kalau start > end
           if (tempEnd != null && date.isAfter(tempEnd!)) {
             tempEnd = null;
             _endController.clear();
@@ -267,7 +259,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
           _endError = true;
           tempEnd = null;
         } else if (tempStart != null && date.isBefore(tempStart!)) {
-          // End tidak boleh sebelum start
           _endError = true;
           tempEnd = null;
         } else {
@@ -306,7 +297,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Text(
             'Filter Tanggal',
             style: TextStyle(
@@ -341,8 +331,7 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
                       boxShadow: isActive
                           ? [
                               BoxShadow(
-                                color:
-                                    AppColors.bluePrimary.withOpacity(0.25),
+                                color: AppColors.bluePrimary.withOpacity(0.25),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -353,7 +342,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
                       label,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        // Fix: dari 0.03 → 0.032 + clamp supaya tidak terlalu kecil
                         fontSize: (w * 0.032).clamp(11.0, 14.0),
                         fontWeight: FontWeight.w600,
                         color: isActive
@@ -367,7 +355,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
             }).toList(),
           ),
 
-          // Field Dari & Sampai
           if (selectedChip == 'Pilih tanggal') ...[
             SizedBox(height: w * 0.045),
             _fieldTanggal(
@@ -393,7 +380,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
 
           SizedBox(height: w * 0.05),
 
-          // Tombol Terapkan
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -409,7 +395,7 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
                         ),
                       );
                     }
-                  : null, // disable kalau belum lengkap
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bluePrimary,
                 foregroundColor: Colors.white,
@@ -468,7 +454,6 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
               color: Colors.grey.shade400,
               fontSize: (w * 0.037).clamp(13.0, 16.0),
             ),
-            // Ikon kalender → tap → buka date picker
             suffixIcon: IconButton(
               icon: Icon(
                 Icons.calendar_today_rounded,
@@ -478,8 +463,7 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
               onPressed: () => _openDatePicker(isStart: isStart),
             ),
             filled: true,
-            fillColor:
-                hasError ? Colors.red.shade50 : Colors.grey.shade50,
+            fillColor: hasError ? Colors.red.shade50 : Colors.grey.shade50,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(w * 0.03),
               borderSide: const BorderSide(color: Color(0xFFE2E5EA)),
@@ -487,23 +471,19 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(w * 0.03),
               borderSide: BorderSide(
-                color: hasError
-                    ? Colors.red.shade400
-                    : const Color(0xFFE2E5EA),
+                color: hasError ? Colors.red.shade400 : const Color(0xFFE2E5EA),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(w * 0.03),
               borderSide: BorderSide(
-                color:
-                    hasError ? Colors.red.shade400 : AppColors.bluePrimary,
+                color: hasError ? Colors.red.shade400 : AppColors.bluePrimary,
               ),
             ),
             contentPadding: EdgeInsets.symmetric(
               horizontal: w * 0.035,
               vertical: w * 0.03,
             ),
-            // Error message di bawah field
             errorText: hasError ? errorText : null,
             errorStyle: TextStyle(
               fontSize: (w * 0.03).clamp(10.0, 12.0),
@@ -513,6 +493,536 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
           onChanged: (val) => _onManualChanged(val, isStart: isStart),
         ),
       ],
+    );
+  }
+}
+
+// ─── Custom TableCalendar Dialog ───────────────────────────────────────────
+
+class _TableCalendarDialog extends StatefulWidget {
+  final DateTime initialDate;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final DateTime minSelectableDate;
+
+  const _TableCalendarDialog({
+    required this.initialDate,
+    required this.firstDate,
+    required this.lastDate,
+    required this.minSelectableDate,
+  });
+
+  @override
+  State<_TableCalendarDialog> createState() => _TableCalendarDialogState();
+}
+
+class _TableCalendarDialogState extends State<_TableCalendarDialog> {
+  late DateTime _focusedDay;
+  DateTime? _selectedDay;
+  bool _showPicker = false;
+
+  late FixedExtentScrollController _monthScrollCtrl;
+  late FixedExtentScrollController _yearScrollCtrl;
+
+  late int _tempMonth;
+  late int _tempYear;
+
+  static const List<String> _monthNames = [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  List<int> get _validYears {
+    final years = <int>[];
+    for (int y = widget.firstDate.year; y <= widget.lastDate.year; y++) {
+      years.add(y);
+    }
+    return years;
+  }
+
+  bool _isSelectable(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+    final min = DateTime(
+      widget.minSelectableDate.year,
+      widget.minSelectableDate.month,
+      widget.minSelectableDate.day,
+    );
+    final max = DateTime(
+      widget.lastDate.year,
+      widget.lastDate.month,
+      widget.lastDate.day,
+    );
+    return !d.isBefore(min) && !d.isAfter(max);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _focusedDay = widget.initialDate;
+    _selectedDay = widget.initialDate;
+    _tempMonth = widget.initialDate.month;
+    _tempYear = widget.initialDate.year;
+
+    _monthScrollCtrl = FixedExtentScrollController(
+      initialItem: widget.initialDate.month - 1,
+    );
+    _yearScrollCtrl = FixedExtentScrollController(
+      initialItem: _validYears
+          .indexOf(widget.initialDate.year)
+          .clamp(0, _validYears.length - 1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _monthScrollCtrl.dispose();
+    _yearScrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _openPicker() {
+    _tempMonth = _focusedDay.month;
+    _tempYear = _focusedDay.year;
+    _monthScrollCtrl.jumpToItem(_tempMonth - 1);
+    _yearScrollCtrl.jumpToItem(
+      _validYears.indexOf(_tempYear).clamp(0, _validYears.length - 1),
+    );
+    setState(() => _showPicker = true);
+  }
+
+  void _applyPicker() {
+    int month = _tempMonth;
+    if (_tempYear == widget.lastDate.year && month > widget.lastDate.month) {
+      month = widget.lastDate.month;
+    }
+    if (_tempYear == widget.firstDate.year && month < widget.firstDate.month) {
+      month = widget.firstDate.month;
+    }
+    setState(() {
+      _focusedDay = DateTime(_tempYear, month, 1);
+      _showPicker = false;
+      if (_selectedDay != null && !_isSelectable(_selectedDay!)) {
+        _selectedDay = null;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(horizontal: w * 0.04),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(w * 0.05),
+        ),
+        padding: EdgeInsets.all(w * 0.04),
+        // AnimatedSize supaya container menyesuaikan tinggi saat ganti page
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeInOut,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Page switch dalam 1 container ──
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                transitionBuilder: (child, animation) {
+                  // Slide dari kanan masuk, slide ke kiri keluar
+                  final inFromRight =
+                      Tween<Offset>(
+                        begin: const Offset(1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeInOut,
+                        ),
+                      );
+                  final outToLeft =
+                      Tween<Offset>(
+                        begin: const Offset(-1.0, 0.0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeInOut,
+                        ),
+                      );
+                  return SlideTransition(
+                    position: child.key == const ValueKey('picker')
+                        ? inFromRight
+                        : outToLeft,
+                    child: child,
+                  );
+                },
+                child: _showPicker
+                    ? _buildPickerPage(w)
+                    : _buildCalendarPage(w),
+              ),
+
+              SizedBox(height: w * 0.03),
+
+              // ── Tombol Batal / Pilih (selalu tampil) ──
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _showPicker
+                          ? setState(() => _showPicker = false)
+                          : Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey.shade600,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        padding: EdgeInsets.symmetric(vertical: w * 0.03),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(w * 0.03),
+                        ),
+                      ),
+                      child: Text(
+                        _showPicker ? 'Kembali' : 'Batal',
+                        style: TextStyle(
+                          fontSize: (w * 0.035).clamp(12.0, 15.0),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: w * 0.03),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _showPicker
+                          ? _applyPicker
+                          : (_selectedDay != null
+                                ? () => Navigator.pop(context, _selectedDay)
+                                : null),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.bluePrimary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledForegroundColor: Colors.grey.shade500,
+                        padding: EdgeInsets.symmetric(vertical: w * 0.03),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(w * 0.03),
+                        ),
+                      ),
+                      child: Text(
+                        _showPicker ? 'Terapkan' : 'Pilih',
+                        style: TextStyle(
+                          fontSize: (w * 0.035).clamp(12.0, 15.0),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Page 1: Kalender ──
+  Widget _buildCalendarPage(double w) {
+    return KeyedSubtree(
+      key: const ValueKey('calendar'),
+      child: TableCalendar(
+        key: ValueKey('cal-${_focusedDay.year}-${_focusedDay.month}'),
+        firstDay: widget.firstDate,
+        lastDay: widget.lastDate,
+        focusedDay: _focusedDay,
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        enabledDayPredicate: _isSelectable,
+        calendarFormat: CalendarFormat.month,
+        availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+        locale: 'id_ID',
+        startingDayOfWeek: StartingDayOfWeek.monday,
+        calendarBuilders: CalendarBuilders(
+          headerTitleBuilder: (context, day) {
+            return GestureDetector(
+              onTap: _openPicker,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _showPicker
+                          ? AppColors.bluePrimary.withOpacity(0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${_monthNames[_focusedDay.month - 1]} ${_focusedDay.year}',
+                      style: TextStyle(
+                        fontSize: (w * 0.04).clamp(14.0, 17.0),
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.bluePrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        headerStyle: HeaderStyle(
+          formatButtonVisible: false,
+          titleCentered: true,
+          leftChevronIcon: Icon(
+            Icons.chevron_left_rounded,
+            color: AppColors.bluePrimary,
+          ),
+          rightChevronIcon: Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.bluePrimary,
+          ),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            fontSize: (w * 0.032).clamp(11.0, 13.0),
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+          weekendStyle: TextStyle(
+            fontSize: (w * 0.032).clamp(11.0, 13.0),
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        calendarStyle: CalendarStyle(
+          outsideDaysVisible: false,
+          selectedDecoration: BoxDecoration(
+            color: AppColors.bluePrimary,
+            shape: BoxShape.circle,
+          ),
+          selectedTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+          todayDecoration: BoxDecoration(
+            color: AppColors.bluePrimary.withOpacity(0.15),
+            shape: BoxShape.circle,
+          ),
+          todayTextStyle: TextStyle(
+            color: AppColors.bluePrimary,
+            fontWeight: FontWeight.w700,
+          ),
+          disabledTextStyle: const TextStyle(color: Colors.transparent),
+          disabledDecoration: const BoxDecoration(shape: BoxShape.circle),
+        ),
+        onDaySelected: (selectedDay, focusedDay) {
+          if (!_isSelectable(selectedDay)) return;
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        },
+        onPageChanged: (focusedDay) {
+          setState(() => _focusedDay = focusedDay);
+        },
+      ),
+    );
+  }
+
+  // ── Page 2: Drum Picker Bulan + Tahun ──
+  Widget _buildPickerPage(double w) {
+    const itemHeight = 44.0;
+    const visibleItems = 5;
+    const pickerHeight = itemHeight * visibleItems;
+
+    return KeyedSubtree(
+      key: const ValueKey('picker'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header page picker
+          Padding(
+            padding: EdgeInsets.only(bottom: w * 0.04),
+            child: Text(
+              'Pilih Bulan & Tahun',
+              style: TextStyle(
+                fontSize: (w * 0.04).clamp(14.0, 17.0),
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade800,
+              ),
+            ),
+          ),
+
+          // Label kolom
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: Text(
+                    'Bulan',
+                    style: TextStyle(
+                      fontSize: (w * 0.031).clamp(11.0, 13.0),
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 1),
+              Expanded(
+                flex: 2,
+                child: Center(
+                  child: Text(
+                    'Tahun',
+                    style: TextStyle(
+                      fontSize: (w * 0.031).clamp(11.0, 13.0),
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: w * 0.02),
+
+          // Drum picker
+          SizedBox(
+            height: pickerHeight,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Highlight baris tengah
+                Positioned(
+                  top: itemHeight * 2,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    height: itemHeight,
+                    decoration: BoxDecoration(
+                      color: AppColors.bluePrimary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(w * 0.02),
+                      border: Border.symmetric(
+                        horizontal: BorderSide(
+                          color: AppColors.bluePrimary.withOpacity(0.25),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    // ── Kolom Bulan ──
+                    Expanded(
+                      flex: 3,
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _monthScrollCtrl,
+                        itemExtent: itemHeight,
+                        perspective: 0.002,
+                        diameterRatio: 4.0,
+                        physics: const FixedExtentScrollPhysics(),
+                        onSelectedItemChanged: (index) {
+                          setState(() => _tempMonth = index + 1);
+                        },
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: 12,
+                          builder: (context, index) {
+                            final month = index + 1;
+                            final isSelected = _tempMonth == month;
+                            final isEnabled =
+                                !(_tempYear == widget.lastDate.year &&
+                                    month > widget.lastDate.month) &&
+                                !(_tempYear == widget.firstDate.year &&
+                                    month < widget.firstDate.month);
+                            return Center(
+                              child: Text(
+                                _monthNames[index],
+                                style: TextStyle(
+                                  fontSize: (w * 0.037).clamp(13.0, 16.0),
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  color: isSelected
+                                      ? AppColors.bluePrimary
+                                      : isEnabled
+                                      ? Colors.grey.shade700
+                                      : Colors.grey.shade300,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    // Divider
+                    Container(
+                      width: 1,
+                      height: pickerHeight * 0.5,
+                      color: Colors.grey.shade200,
+                    ),
+
+                    // ── Kolom Tahun ──
+                    Expanded(
+                      flex: 2,
+                      child: ListWheelScrollView.useDelegate(
+                        controller: _yearScrollCtrl,
+                        itemExtent: itemHeight,
+                        perspective: 0.002,
+                        diameterRatio: 4.0,
+                        physics: const FixedExtentScrollPhysics(),
+                        onSelectedItemChanged: (index) {
+                          setState(() => _tempYear = _validYears[index]);
+                        },
+                        childDelegate: ListWheelChildBuilderDelegate(
+                          childCount: _validYears.length,
+                          builder: (context, index) {
+                            final year = _validYears[index];
+                            final isSelected = _tempYear == year;
+                            return Center(
+                              child: Text(
+                                '$year',
+                                style: TextStyle(
+                                  fontSize: (w * 0.037).clamp(13.0, 16.0),
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  color: isSelected
+                                      ? AppColors.bluePrimary
+                                      : Colors.grey.shade700,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

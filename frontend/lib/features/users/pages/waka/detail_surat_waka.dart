@@ -170,7 +170,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
           SizedBox(width: w * 0.02),
           Expanded(
             child: Text(
-              'Detail Surat',
+              'Detail Surat Masuk',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: rf(context, 18),
@@ -533,10 +533,14 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       setState(() => _showGuruError = true);
       return;
     }
-    if (_catatanDisposisiCtrl.text.trim().isEmpty) {
-      _showSnackbar('Catatan disposisi wajib diisi.');
-      return;
-    }
+
+    // catatan opsional, jadi tidak divalidasi
+
+    final payload = {
+      'id_surat': _suratData['id'],
+      'guru': _selectedGuru,
+      'catatan': _catatanDisposisiCtrl.text.trim(), // boleh kosong
+    };
 
     // TODO: Kirim ke API — payload siap di sini.
     // final payload = {
@@ -567,33 +571,91 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   void _showSuccessDialog(BuildContext context, String message) {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
       builder: (_) {
-        return AlertDialog(
+        return Dialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(rf(context, 16)),
           ),
-          title: Row(
-            children: [
-              Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: rf(context, 24),
-              ),
-              SizedBox(width: rf(context, 8)),
-              Text('Berhasil', style: TextStyle(fontSize: rf(context, 18))),
-            ],
-          ),
-          content: Text(message, style: TextStyle(fontSize: rf(context, 14))),
-          actions: [
-            ElevatedButton(
-              style: _buttonStyle(context),
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: Text('OK', style: TextStyle(fontSize: rf(context, 14))),
+          child: Padding(
+            padding: EdgeInsets.all(rf(context, 20)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ICON SUCCESS
+                Container(
+                  width: rf(context, 60),
+                  height: rf(context, 60),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: rf(context, 36),
+                  ),
+                ),
+
+                SizedBox(height: rf(context, 12)),
+
+                // TITLE
+                Text(
+                  'Berhasil',
+                  style: TextStyle(
+                    fontSize: rf(context, 18),
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+
+                SizedBox(height: rf(context, 8)),
+
+                // MESSAGE
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: rf(context, 14),
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+
+                SizedBox(height: rf(context, 18)),
+
+                // BUTTON
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.bluePrimary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.symmetric(vertical: rf(context, 12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(rf(context, 10)),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      'OK',
+                      style: TextStyle(
+                        fontSize: rf(context, 14),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -976,11 +1038,9 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
                   focusNode: _focusNode,
                   style: TextStyle(fontSize: rf(14), color: Colors.black87),
                   decoration: InputDecoration(
-                    contentPadding: EdgeInsets.fromLTRB(
-                      rf(12),
-                      rf(16),
-                      rf(12),
-                      rf(8),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: rf(12),
+                      vertical: rf(14),
                     ),
                     prefixIcon: Icon(
                       Icons.person_outline,

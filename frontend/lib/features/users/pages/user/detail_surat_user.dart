@@ -98,11 +98,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   /// Header halaman detail surat.
   Widget _buildHeader(BuildContext context, double w, double h) {
     return Padding(
-      padding: EdgeInsets.only(
-        top: h * 0.025,
-        left: w * 0.05,
-        right: w * 0.05,
-      ),
+      padding: EdgeInsets.only(top: h * 0.025, left: w * 0.05, right: w * 0.05),
       child: Row(
         children: [
           GestureDetector(
@@ -118,7 +114,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
 
           Expanded(
             child: Text(
-              'Detail Surat',
+              'Detail Surat Masuk',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: rf(context, 18),
@@ -284,6 +280,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
       context: context,
       builder: (_) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(rf(context, 16)),
           ),
@@ -294,9 +291,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
                 color: Colors.green,
                 size: rf(context, 24),
               ),
-
               SizedBox(width: rf(context, 8)),
-
               Text('Berhasil', style: TextStyle(fontSize: rf(context, 18))),
             ],
           ),

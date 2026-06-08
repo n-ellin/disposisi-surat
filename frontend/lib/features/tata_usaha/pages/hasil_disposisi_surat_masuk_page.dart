@@ -128,16 +128,16 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                                   : _radioWaka(w, h),
                             ],
                           ),
-                          SizedBox(height: h * 0.02),
+                          SizedBox(height: h * 0.01),
                         ],
-                        SizedBox(height: h * 0.02),
+                      
 
-                        /// ── Card Catatan ──
+                        
                         /// ── Card Catatan ──
                         _sectionCard(
                           w: w,
                           children: [
-                            _buildLabel("Catatan Kepala Sekolah", w),
+                            _buildLabel("Catatan", w),
                             SizedBox(height: h * 0.008),
                             _readOnlyTextArea(
                               value: widget.catatan,

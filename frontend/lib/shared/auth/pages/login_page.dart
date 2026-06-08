@@ -66,17 +66,6 @@ class _LoginState extends State<Login> {
     },
   ];
 
-  // ================= CEK DUMMY =================
-  Map<String, dynamic>? _checkDummy(String email, String password) {
-    try {
-      return _dummyUsers.firstWhere(
-        (u) => u['email'] == email && u['password'] == password,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
   // ================= LOGIN =================
   Future<void> _login() async {
     if (_isLoading) return;
@@ -95,6 +84,32 @@ class _LoginState extends State<Login> {
 
     setState(() => _isLoading = true);
 
+    try {
+      final res = await _authRepo.login(email: email, password: password);
+      final user = res['user'] as Map<String, dynamic>? ?? {};
+
+      final roleStr = user['role']?.toString() ?? '';
+      final nama = user['nama']?.toString() ?? '';
+      final jabatan = user['jabatan']?.toString() ?? '';
+
+      if (roleStr == 'admin') {
+        setState(() {
+          _emailError = 'Akun admin tidak tersedia di aplikasi mobile';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      await _navigateAfterLogin(
+        role: _parseRole(roleStr),
+        nama: nama,
+        email: email,
+        jabatan: jabatan,
+      );
+      return;
+    } catch (_) {
+      // BE belum ready — fallback ke dummy
+    }
     // -- Cek dummy: email dulu, baru password --
     final emailMatch = _dummyUsers.where((u) => u['email'] == email).toList();
 
@@ -138,7 +153,7 @@ class _LoginState extends State<Login> {
 
   // ================= PARSE ROLE =================
   Role _parseRole(String role) {
-    switch (role.toLowerCase()) {
+    switch (role.toLowerCase().trim()) {
       case 'kepsek':
         return Role.kepsek;
       case 'pegawai':
@@ -146,6 +161,7 @@ class _LoginState extends State<Login> {
       case 'waka':
         return Role.waka;
       case 'user':
+      case 'users': // handle typo di dummy
         return Role.user;
       default:
         return Role.user;
@@ -263,14 +279,14 @@ class _LoginState extends State<Login> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // ================= EMAIL =================
-                          const _FieldLabel(text: 'EMAIL'),
+                          const _FieldLabel(text: 'Surel'),
                           const SizedBox(height: 10),
                           _buildEmailField(),
 
                           const SizedBox(height: 22),
 
                           // ================= PASSWORD =================
-                          const _FieldLabel(text: 'KATA SANDI'),
+                          const _FieldLabel(text: 'Kata Sandi'),
                           const SizedBox(height: 10),
                           _buildPasswordField(),
 
@@ -292,7 +308,7 @@ class _LoginState extends State<Login> {
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               child: const Text(
-                                'Lupa Kata sandi?',
+                                'Lupa kata sandi?',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -371,7 +387,7 @@ class _LoginState extends State<Login> {
       cursorColor: AppColors.bluePrimary,
       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       decoration: _fieldDecoration(
-        hint: 'Email',
+        hint: 'Surel',
         error: _emailError,
         prefixIcon: Icons.mail_outline_rounded,
       ),
