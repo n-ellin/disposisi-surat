@@ -19,18 +19,26 @@ class AuthRepository {
       data: {'email': email, 'password': password},
     );
 
-    final token = res['token']?.toString() ?? '';
-    final user  = res['user'] as Map<String, dynamic>? ?? {};
+    // BE membungkus response di dalam 'data'
+    final data = res['data'] as Map<String, dynamic>? ?? res;
+    final token = data['token']?.toString() ?? '';
+    final refreshToken = data['refresh_token']?.toString() ?? '';
+    final user = data['user'] as Map<String, dynamic>? ?? {};
 
     // Simpan ke secure storage
-    await _storage.write(key: 'token',   value: token);
+    await _storage.write(key: 'token', value: token);
+    await _storage.write(key: 'refresh_token', value: refreshToken);
     await _storage.write(key: 'user_id', value: user['id']?.toString() ?? '');
-    await _storage.write(key: 'nama',    value: user['nama']?.toString() ?? '');
-    await _storage.write(key: 'email',   value: user['email']?.toString() ?? '');
-    await _storage.write(key: 'role',    value: user['role']?.toString() ?? '');
-    await _storage.write(key: 'jabatan', value: user['jabatan']?.toString() ?? '');
+    await _storage.write(key: 'nama', value: user['nama']?.toString() ?? '');
+    await _storage.write(key: 'email', value: user['email']?.toString() ?? '');
+    await _storage.write(key: 'role', value: user['role']?.toString() ?? '');
+    await _storage.write(
+      key: 'jabatan',
+      value: user['nama_jabatan']?.toString() ?? '',
+    );
 
-    return res;
+    // Return format yang diexpect login_page.dart
+    return {'token': token, 'user': user};
   }
 
   // ─── Logout ────────────────────────────────────────────────────────────────
@@ -62,8 +70,8 @@ class AuthRepository {
     await _client.post(
       ApiConfig.changePassword,
       data: {
-        'old_password':     oldPassword,
-        'new_password':     newPassword,
+        'old_password': oldPassword,
+        'new_password': newPassword,
         'confirm_password': confirmPassword,
       },
     );
@@ -80,13 +88,10 @@ class AuthRepository {
   }
 
   /// Return reset_token yang dipakai untuk reset password.
-  Future<String> verifyOtp({
-    required String email,
-    required String otp,
-  }) async {
+  Future<String> verifyOtp({required String email, required String otp}) async {
     final res = await _client.post(
       ApiConfig.verifyOtp,
-      data: {'email': email, 'otp': otp},
+      data: {'email': email, 'code': otp},
     );
     final data = res['data'] as Map<String, dynamic>? ?? res;
     return data['reset_token']?.toString() ?? '';
@@ -101,9 +106,9 @@ class AuthRepository {
     await _client.post(
       ApiConfig.resetPassword,
       data: {
-        'email':            email,
-        'reset_token':      resetToken,
-        'new_password':     newPassword,
+        'email': email,
+        'reset_token': resetToken,
+        'new_password': newPassword,
         'confirm_password': confirmPassword,
       },
     );
@@ -121,9 +126,9 @@ class AuthRepository {
   Future<Map<String, String>> getSessionData() async {
     return {
       'user_id': await _storage.read(key: 'user_id') ?? '',
-      'nama':    await _storage.read(key: 'nama')    ?? '',
-      'email':   await _storage.read(key: 'email')   ?? '',
-      'role':    await _storage.read(key: 'role')    ?? '',
+      'nama': await _storage.read(key: 'nama') ?? '',
+      'email': await _storage.read(key: 'email') ?? '',
+      'role': await _storage.read(key: 'role') ?? '',
       'jabatan': await _storage.read(key: 'jabatan') ?? '',
     };
   }

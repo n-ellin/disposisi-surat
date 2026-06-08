@@ -35,6 +35,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   final List<String> _selectedGuru = [];
   final TextEditingController _catatanDisposisiCtrl = TextEditingController();
   bool _showGuruError = false;
+  bool _showCatatanError = false;
 
   /// TODO: Ganti isi list ini dengan nama guru yang sesuai.
   final List<String> _guruList = [
@@ -229,7 +230,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             ),
           ),
           SizedBox(height: h * 0.01),
-          if (_attachmentUrls.isEmpty)
+      if (_attachmentUrls.isEmpty)
             Text(
               'Tidak ada lampiran',
               style: TextStyle(
@@ -239,6 +240,63 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             )
           else
             _buildLampiranTile(context, w),
+
+          // ← TOMBOL LIHAT SURAT PDF
+          if ((_suratData['file_pdf'] ?? '').toString().isNotEmpty) ...[
+            SizedBox(height: h * 0.012),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SuratPdfViewer(
+                      filePdf: _suratData['file_pdf'].toString(),
+                      judul: _suratData['Perihal'] ?? 'Lihat Surat',
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: rf(context, 14),
+                  vertical: rf(context, 12),
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.bluePrimary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(rf(context, 10)),
+                  border: Border.all(
+                    color: AppColors.bluePrimary.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.picture_as_pdf_outlined,
+                      color: AppColors.bluePrimary,
+                      size: rf(context, 20),
+                    ),
+                    SizedBox(width: w * 0.025),
+                    Expanded(
+                      child: Text(
+                        'Lihat Surat (PDF)',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: rf(context, 14),
+                          color: AppColors.bluePrimary,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.open_in_new,
+                      color: AppColors.bluePrimary.withValues(alpha: 0.6),
+                      size: rf(context, 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -429,12 +487,20 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             controller: _catatanDisposisiCtrl,
             maxLines: 4,
             style: TextStyle(fontSize: rf(context, 14)),
+            onChanged: (val) {
+              if (val.trim().isNotEmpty && _showCatatanError) {
+                setState(
+                  () => _showCatatanError = false,
+                ); // ← hapus error saat diisi
+              }
+            },
             decoration: InputDecoration(
               hintText: 'Tulis catatan untuk guru yang dituju...',
               hintStyle: TextStyle(
                 fontSize: rf(context, 13),
                 color: Colors.grey.shade400,
               ),
+
               contentPadding: EdgeInsets.all(rf(context, 12)),
               filled: true,
               fillColor: Colors.grey.shade50,
@@ -444,7 +510,12 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(rf(context, 10)),
-                borderSide: BorderSide(color: Colors.grey.shade200),
+                borderSide: BorderSide(
+                  color:
+                      _showCatatanError // ← merah kalau error
+                      ? Colors.red.shade400
+                      : Colors.grey.shade200,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(rf(context, 10)),
@@ -452,6 +523,31 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
             ),
           ),
+          // --- Inline error catatan ---
+          if (_showCatatanError)
+            Padding(
+              padding: EdgeInsets.only(
+                top: rf(context, 6),
+                left: rf(context, 4),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: rf(context, 13),
+                    color: Colors.red.shade400,
+                  ),
+                  SizedBox(width: rf(context, 4)),
+                  Text(
+                    'Catatan wajib diisi',
+                    style: TextStyle(
+                      fontSize: rf(context, 12),
+                      color: Colors.red.shade400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -529,25 +625,25 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   }
 
   void _onKonfirmasi() {
+    bool hasError = false;
+
     if (_selectedGuru.isEmpty) {
       setState(() => _showGuruError = true);
-      return;
+      hasError = true;
     }
 
-    // catatan opsional, jadi tidak divalidasi
+    if (_catatanDisposisiCtrl.text.trim().isEmpty) {
+      setState(() => _showCatatanError = true);
+      hasError = true;
+    }
+
+    if (hasError) return;
 
     final payload = {
       'id_surat': _suratData['id'],
       'guru': _selectedGuru,
-      'catatan': _catatanDisposisiCtrl.text.trim(), // boleh kosong
+      'catatan': _catatanDisposisiCtrl.text.trim(),
     };
-
-    // TODO: Kirim ke API — payload siap di sini.
-    // final payload = {
-    //   'id_surat': _suratData['id'],
-    //   'guru'    : _selectedGuru,
-    //   'catatan' : _catatanDisposisiCtrl.text.trim(),
-    // };
 
     _showSuccessDialog(context, 'Disposisi berhasil dikirim.');
   }

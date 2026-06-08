@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
-// import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
@@ -9,7 +8,7 @@ import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_disposisi_surat_masuk_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
 
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 class TuDashboardPage extends StatefulWidget {
   final String jenisSurat;
@@ -21,76 +20,117 @@ class TuDashboardPage extends StatefulWidget {
 }
 
 class _TuDashboardPageState extends State<TuDashboardPage> {
-  // ── API (TODO: aktifkan kalau BE sudah ready) ──────────────────────────
-  // final _repo = SuratRepository();
-  //
-  // Future<void> _fetchSurat() async {
-  //   setState(() { _isLoading = true; _errorMessage = null; });
-  //   try {
-  //     final isMasuk = widget.jenisSurat == 'Surat Masuk';
-  //     final raw = isMasuk
-  //         ? await _repo.getSuratMasukList()
-  //         : await _repo.getSuratKeluarList();
-  //     if (!mounted) return;
-  //     setState(() {
-  //       _suratList = raw
-  //           .map((item) => isMasuk ? _mapSuratMasuk(item) : _mapSuratKeluar(item))
-  //           .toList();
-  //       _isLoading = false;
-  //     });
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     setState(() { _errorMessage = 'Gagal memuat data. Periksa koneksi.'; _isLoading = false; });
-  //   }
-  // }
-  //
-  // Map<String, dynamic> _mapSuratMasuk(Map<String, dynamic> item) {
-  //   final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
-  //   return {
-  //     ...item,
-  //     'jenisSurat': 'Surat Masuk',
-  //     'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
-  //     'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
-  //     'diteruskanKe': item['disposisi_status'],
-  //     'data': {
-  //       'No Surat': item['no_surat'] ?? '-',
-  //       'Perihal': item['perihal_surat'] ?? '-',
-  //       'Dari': item['asal_surat'] ?? '-',
-  //     },
-  //   };
-  // }
-  //
-  // Map<String, dynamic> _mapSuratKeluar(Map<String, dynamic> item) {
-  //   final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
-  //   return {
-  //     ...item,
-  //     'jenisSurat': 'Surat Keluar',
-  //     'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
-  //     'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
-  //     'catatan': item['catatan'] ?? item['catatan_verifikasi'] ?? '',
-  //     'data': {
-  //       'No Surat': item['no_surat'] ?? '-',
-  //       'Perihal': item['perihal'] ?? '-',
-  //       'Dari': item['tujuan'] ?? '-',
-  //     },
-  //   };
-  // }
-  //
-  // String _formatTanggal(String isoDate) {
-  //   try {
-  //     final dt = DateTime.parse(isoDate);
-  //     const months = ['','Januari','Februari','Maret','April','Mei','Juni',
-  //         'Juli','Agustus','September','Oktober','November','Desember'];
-  //     return '${dt.day} ${months[dt.month]} ${dt.year}';
-  //   } catch (_) { return isoDate; }
-  // }
-  // ──────────────────────────────────────────────────────────────────────
+  final _repo = SuratRepository();
 
+  List<Map<String, dynamic>> _suratList = [];
+  bool _isLoading = true;
   String _selectedFilter = 'semua';
   String _searchQuery = '';
 
-  List<Map<String, dynamic>> get _allSurat =>
-      widget.jenisSurat == 'Surat Masuk' ? SuratDummy.masuk : SuratDummy.keluar;
+  @override
+  void initState() {
+    super.initState();
+    _fetchSurat();
+  }
+
+  Future<void> _fetchSurat() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final isMasuk = widget.jenisSurat == 'Surat Masuk';
+
+      final raw = isMasuk
+          ? await _repo.getSuratMasukList()
+          : await _repo.getSuratKeluarList();
+
+      if (!mounted) return;
+
+      setState(() {
+        _suratList = raw
+            .map(
+              (item) => isMasuk ? _mapSuratMasuk(item) : _mapSuratKeluar(item),
+            )
+            .toList();
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Map<String, dynamic> _mapSuratMasuk(Map<String, dynamic> item) {
+    final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
+
+    return {
+      ...item,
+      'jenisSurat': 'Surat Masuk',
+      'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
+      'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
+      'catatan': item['catatan'] ?? item['catatan_verifikasi'] ?? '',
+      'lampiran': item['lampiran'] ?? [],
+      'data': {
+        'No Surat': item['no_surat']?.toString() ?? '-',
+        'Perihal': item['perihal_surat']?.toString() ?? '-',
+        'Dari': item['asal_surat']?.toString() ?? '-',
+      },
+    };
+  }
+
+  Map<String, dynamic> _mapSuratKeluar(Map<String, dynamic> item) {
+    final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
+
+    return {
+      ...item,
+      'jenisSurat': 'Surat Keluar',
+      'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
+      'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
+      'catatan': item['catatan'] ?? item['catatan_verifikasi'] ?? '',
+      'lampiran': item['lampiran'] ?? [],
+      'data': {
+        'No Surat': item['no_surat']?.toString() ?? '-',
+        'Perihal': item['perihal']?.toString() ?? '-',
+        'Dari': item['tujuan']?.toString() ?? '-',
+      },
+    };
+  }
+
+  String _formatTanggal(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate);
+
+      const months = [
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'Mei',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
+      ];
+
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  List<Map<String, dynamic>> get _allSurat => _suratList;
 
   List<Map<String, dynamic>> get _filteredSurat {
     List<Map<String, dynamic>> result = _allSurat;
@@ -119,38 +159,18 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
 
     // ✅ Tambahkan ini — terbaru di atas
     result.sort((a, b) {
-      final dateA = _parseTanggal(a['tanggal'] ?? '');
-      final dateB = _parseTanggal(b['tanggal'] ?? '');
-      return dateB.compareTo(dateA);
+      try {
+        final dateA = DateTime.parse(a['tanggal_surat']?.toString() ?? '');
+
+        final dateB = DateTime.parse(b['tanggal_surat']?.toString() ?? '');
+
+        return dateB.compareTo(dateA);
+      } catch (_) {
+        return 0;
+      }
     });
 
     return result;
-  }
-
-  DateTime _parseTanggal(String tanggal) {
-    const bulan = {
-      'Januari': 1,
-      'Februari': 2,
-      'Maret': 3,
-      'April': 4,
-      'Mei': 5,
-      'Juni': 6,
-      'Juli': 7,
-      'Agustus': 8,
-      'September': 9,
-      'Oktober': 10,
-      'November': 11,
-      'Desember': 12,
-    };
-    try {
-      final parts = tanggal.split(' '); // ["12", "Januari", "2024"]
-      final day = int.parse(parts[0]);
-      final month = bulan[parts[1]] ?? 1;
-      final year = int.parse(parts[2]);
-      return DateTime(year, month, day);
-    } catch (_) {
-      return DateTime(1970); // fallback ke paling bawah kalau parsing gagal
-    }
   }
 
   final Map<String, Color> filterColors = {
@@ -213,11 +233,14 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
                           isApproved: status == 'disetujui',
                           catatan: surat['catatan'] ?? '',
                           jabatanWaka: surat['jabatanWaka'] ?? '',
-                          isReadOnly: false,
+                          lampiranUrls: List<String>.from(
+                            surat['lampiran'] ?? [],
+                          ),
+                          isReadOnly: true,
                         )
                       : OutputSuratkeluar(
                           catatan: surat['catatan'] ?? '-',
-                          isReadOnly: false,
+                          isReadOnly: true,
                           lampiranUrls: List<String>.from(
                             surat['lampiran'] ?? [],
                           ),
@@ -236,6 +259,10 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
     final size = MediaQuery.of(context).size;
     final w = size.width;
     final h = size.height;
+
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: AppColors.bg,

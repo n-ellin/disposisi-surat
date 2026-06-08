@@ -10,7 +10,7 @@ class OutputSuratmasuk extends StatefulWidget {
   final String jabatanWaka;
   final bool isReadOnly;
   final List<String> lampiranUrls;
-  final bool showWaka; // ← cukup satu di sini
+  final bool showWaka;
 
   const OutputSuratmasuk({
     super.key,
@@ -22,8 +22,6 @@ class OutputSuratmasuk extends StatefulWidget {
     this.showWaka = true,
   });
 
-  // ← hapus 'final bool showWaka;' yang ada di sini
-
   @override
   State<OutputSuratmasuk> createState() => _OutputSuratmasukState();
 }
@@ -32,14 +30,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
   double rf(double size, double w) {
     return (w * (size / 375)).clamp(size * 0.9, size * 1.2);
   }
-
-  /// Daftar jabatan Waka yang tersedia.
-  final List<String> _wakaOptions = [
-    'wakaKurikulum',
-    'wakaKesiswaan',
-    'wakaHumas',
-    'wakaSarpras',
-  ];
 
   /// Jabatan Waka yang dipilih (untuk mode edit).
   String? _selectedWaka;
@@ -130,9 +120,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                           ),
                           SizedBox(height: h * 0.01),
                         ],
-                      
 
-                        
                         /// ── Card Catatan ──
                         _sectionCard(
                           w: w,
@@ -196,15 +184,18 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                                   ),
                                 ),
                                 onPressed: () {
+                                  if (widget.lampiranUrls.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Tidak ada lampiran'),
+                                      ),
+                                    );
+                                    return;
+                                  }
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => FullScreenImageViewer(
-                                        imageAssetPath:
-                                            'assets/images/undangan.png',
-                                        imageUrls: const [
-                                          'assets/images/undangan.png',
-                                          'assets/images/logo.png',
-                                        ],
+                                        imageUrls: widget.lampiranUrls,
                                         initialIndex: 0,
                                       ),
                                     ),
@@ -325,9 +316,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     );
   }
 
-  // State — ganti _selectedWaka tetap sama, tidak perlu tambah
-
-  // ── Ganti method _dropdownWaka() dengan ini ──
   Widget _radioWaka(double w, double h) {
     final options = [
       {

@@ -3,7 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 // TODO: BE — hapus import dummy & aktifkan kembali SuratRepository saat API sudah siap
 // import '../../../data/repositories/surat_repository.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+// Tambah import di atas
+import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
@@ -45,8 +46,6 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   DateTime _parseDate(String tanggal) {
-    // TODO: BE — saat API aktif, format ISO bisa langsung DateTime.parse(tanggal)
-    // Format dummy: "03 Jun 2025"
     const bulan = {
       'Jan': 1,
       'Feb': 2,
@@ -78,11 +77,12 @@ class _HomeState extends State<Home> {
   // TODO: BE — aktifkan kembali _suratRepo saat API sudah siap
   // final _suratRepo = SuratRepository();
 
+  // STATE
+  final _suratRepo = SuratRepository(); // ← di sini
   List<Map<String, dynamic>> _suratMasukList = [];
   List<Map<String, dynamic>> _suratKeluarList = [];
   bool _isLoading = true;
   late List<Map<String, dynamic>> notifications;
-
   @override
   void initState() {
     super.initState();
@@ -131,16 +131,28 @@ class _HomeState extends State<Home> {
   //   }
   // =========================
   Future<void> _loadData() async {
-    // Simulasi delay network ringan supaya loading state terlihat wajar
-    await Future.delayed(const Duration(milliseconds: 300));
-
     if (!mounted) return;
+    setState(() => _isLoading = true);
 
-    setState(() {
-      _suratMasukList = SuratDummy.masuk;
-      _suratKeluarList = SuratDummy.keluar;
-      _isLoading = false;
-    });
+    try {
+      final masuk = await _suratRepo.getSuratMasukList();
+      final keluar = await _suratRepo.getSuratKeluarList();
+      if (!mounted) return;
+      setState(() {
+        _suratMasukList = masuk;
+        _suratKeluarList = keluar;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat data: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // =========================
@@ -150,12 +162,27 @@ class _HomeState extends State<Home> {
   //   tetap dipanggil saat integrasi API karena getter allSurat sudah menggunakannya.
   // =========================
   String _formatTanggal(String rawDate) {
-    // Dummy sudah pakai format "03 Jun 2025", cukup kembalikan apa adanya.
-    // TODO: BE — saat pakai API, parse ISO date seperti implementasi aslinya:
-    //   final dt = DateTime.parse(rawDate);
-    //   const months = ['', 'Januari', 'Februari', ...];
-    //   return '${dt.day} ${months[dt.month]} ${dt.year}';
-    return rawDate;
+    try {
+      final dt = DateTime.parse(rawDate);
+      const months = [
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'Mei',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
+      ];
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return rawDate; // fallback kalau format aneh
+    }
   }
 
   // =========================
@@ -175,12 +202,12 @@ class _HomeState extends State<Home> {
           (s) => {
             ...s,
             'jenisSurat': 'Surat Masuk',
-            'tanggal': _formatTanggal(s['tanggal'] ?? ''),
-            'status': s['status'] ?? 'menunggu',
+            'tanggal': _formatTanggal(s['tanggal_surat']?.toString() ?? ''),
+            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
             'data': {
-              'No Surat': s['data']?['No. Surat'] ?? '-',
-              'Perihal': s['data']?['Perihal'] ?? '-',
-              'Dari': s['data']?['Dari'] ?? '-',
+              'No Surat': s['no_surat']?.toString() ?? '-',
+              'Perihal': s['perihal_surat']?.toString() ?? '-',
+              'Dari': s['asal_surat']?.toString() ?? '-',
             },
           },
         )
@@ -191,12 +218,12 @@ class _HomeState extends State<Home> {
           (s) => {
             ...s,
             'jenisSurat': 'Surat Keluar',
-            'tanggal': _formatTanggal(s['tanggal'] ?? ''),
-            'status': s['status'] ?? 'menunggu',
+            'tanggal': _formatTanggal(s['tanggal_surat']?.toString() ?? ''),
+            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
             'data': {
-              'No Surat': s['data']?['No. Surat'] ?? '-',
-              'Perihal': s['data']?['Perihal'] ?? '-',
-              'Dari': s['data']?['Dari'] ?? '-',
+              'No Surat': s['no_surat']?.toString() ?? '-',
+              'Perihal': s['perihal']?.toString() ?? '-',
+              'Dari': s['tujuan']?.toString() ?? '-',
             },
           },
         )
@@ -278,8 +305,9 @@ class _HomeState extends State<Home> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              isMasuk ? InputSuratMasuk(surat: surat) : InputSuratKeluar(surat: surat,),
+          builder: (_) => isMasuk
+              ? InputSuratMasuk(surat: surat)
+              : InputSuratKeluar(surat: surat),
         ),
       );
       return;

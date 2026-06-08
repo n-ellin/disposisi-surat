@@ -1,10 +1,18 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/api_config.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FULL SCREEN IMAGE VIEWER
+// Untuk menampilkan lampiran berupa gambar (URL / asset).
+// Tidak berubah dari versi sebelumnya.
+// ─────────────────────────────────────────────────────────────────────────────
 
 class FullScreenImageViewer extends StatefulWidget {
   const FullScreenImageViewer({
@@ -43,10 +51,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     _pageController.dispose();
     super.dispose();
   }
-
-  // ─────────────────────────────────────────────
-  // DOWNLOAD
-  // ─────────────────────────────────────────────
 
   Future<void> _downloadImage() async {
     final urls = widget.imageUrls ?? [];
@@ -108,18 +112,15 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     if (Platform.isAndroid) {
       final status = await Permission.photos.request();
       if (status.isGranted) return true;
-
       final storage = await Permission.storage.request();
       return storage.isGranted;
     }
-
     final ios = await Permission.photos.request();
     return ios.isGranted;
   }
 
   void _showSnackbar(String msg, {bool isError = false}) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
@@ -128,27 +129,13 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // UI HELPERS
-  // ─────────────────────────────────────────────
-
   bool get _isSmallDevice => MediaQuery.of(context).size.width < 600;
-
-  bool get _isTablet =>
-      MediaQuery.of(context).size.width >= 600 &&
-      MediaQuery.of(context).size.width < 1100;
-
   bool get _showArrows => !_isSmallDevice;
-
-  // ─────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final images = widget.imageUrls ?? [];
     final total = images.isNotEmpty ? images.length : 1;
-
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
@@ -159,7 +146,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             constraints: const BoxConstraints(maxWidth: 1100),
             child: Stack(
               children: [
-                // ── IMAGE VIEW ──
                 if (images.isNotEmpty)
                   PageView.builder(
                     controller: _pageController,
@@ -182,7 +168,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                 else
                   Center(child: _buildSingleImage()),
 
-                // ── CLOSE BUTTON ──
                 Positioned(
                   top: 12,
                   right: 12,
@@ -192,7 +177,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                   ),
                 ),
 
-                // ── PAGE COUNTER ──
                 if (total > 1)
                   Positioned(
                     top: 16,
@@ -219,7 +203,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
-                // ── ARROWS (HIDE ON SMALL DEVICE) ──
                 if (_showArrows && total > 1 && _currentIndex > 0)
                   Positioned(
                     left: 10,
@@ -248,7 +231,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
-                // ── DOT INDICATOR ──
                 if (total > 1)
                   Positioned(
                     bottom: bottomPadding + 80,
@@ -272,7 +254,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
-                // ── BOTTOM BAR ──
                 Positioned(
                   left: 0,
                   right: 0,
@@ -295,10 +276,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
       ),
     );
   }
-
-  // ─────────────────────────────────────────────
-  // WIDGETS
-  // ─────────────────────────────────────────────
 
   Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
     return Material(
@@ -333,7 +310,6 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
 
   Widget _progress() {
     final percent = (_downloadProgress * 100).toStringAsFixed(0);
-
     return Column(
       children: [
         Row(
@@ -356,15 +332,8 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   Widget _buildSingleImage() {
     final asset = widget.imageAssetPath ?? '';
     final url = widget.imageUrl ?? '';
-
-    if (asset.isNotEmpty) {
-      return Image.asset(asset, fit: BoxFit.contain);
-    }
-
-    if (url.isNotEmpty) {
-      return Image.network(url, fit: BoxFit.contain);
-    }
-
+    if (asset.isNotEmpty) return Image.asset(asset, fit: BoxFit.contain);
+    if (url.isNotEmpty) return Image.network(url, fit: BoxFit.contain);
     return _placeholder();
   }
 
@@ -376,6 +345,205 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
         SizedBox(height: 10),
         Text('Tidak ada gambar', style: TextStyle(color: Colors.grey)),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SURAT PDF VIEWER
+// Untuk menampilkan surat dalam bentuk PDF yang diupload dari web/desktop.
+//
+// Cara pakai:
+//   Navigator.push(context, MaterialPageRoute(
+//     builder: (_) => SuratPdfViewer(
+//       filePdf: surat['file_pdf'],   // nilai dari response API, misal "sm_1234.pdf"
+//       judul: surat['perihal_surat'],
+//     ),
+//   ));
+//
+// Cara konstruksi URL:
+//   ApiConfig.pdfUrl("sm_1234.pdf") → "http://IP:8080/uploads/sm_1234.pdf"
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SuratPdfViewer extends StatefulWidget {
+  /// Nama file PDF dari field `file_pdf` response API.
+  /// Contoh: "sm_1748234567890.pdf"
+  final String filePdf;
+
+  /// Judul yang tampil di AppBar, biasanya perihal surat.
+  final String judul;
+
+  const SuratPdfViewer({
+    super.key,
+    required this.filePdf,
+    this.judul = 'Lihat Surat',
+  });
+
+  @override
+  State<SuratPdfViewer> createState() => _SuratPdfViewerState();
+}
+
+class _SuratPdfViewerState extends State<SuratPdfViewer> {
+  String? _localPath;
+  bool _isLoading = true;
+  String? _error;
+  int _totalPages = 0;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _downloadAndLoad();
+  }
+
+  /// Download PDF dari server ke folder temp, lalu render.
+  /// Kalau file sudah pernah didownload (cache), langsung pakai.
+  Future<void> _downloadAndLoad() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Konstruksi URL: baseUrl + /uploads/ + nama_file
+      final url = ApiConfig.pdfUrl(widget.filePdf);
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/${widget.filePdf}';
+
+      // Pakai cache kalau sudah ada
+      if (!File(savePath).existsSync()) {
+        await Dio().download(url, savePath);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _localPath = savePath;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Gagal memuat surat.\nPeriksa koneksi dan coba lagi.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade900,
+      appBar: AppBar(
+        backgroundColor: AppColors.bluePrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          widget.judul,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          if (_totalPages > 0)
+            Padding(
+              padding: EdgeInsets.only(
+                right: 16,
+                bottom: bottomPadding > 0 ? 0 : 0,
+              ),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_currentPage + 1} / $_totalPages',
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.bluePrimary),
+                  SizedBox(height: 16),
+                  Text(
+                    'Memuat surat...',
+                    style: TextStyle(color: Colors.white54, fontSize: 14),
+                  ),
+                ],
+              ),
+            )
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.redAccent,
+                      size: 52,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _downloadAndLoad,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Coba Lagi'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.bluePrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : PDFView(
+              filePath: _localPath!,
+              enableSwipe: true,
+              swipeHorizontal: false,
+              autoSpacing: true,
+              pageFling: true,
+              backgroundColor: Colors.grey.shade900,
+              onRender: (pages) {
+                if (mounted) setState(() => _totalPages = pages ?? 0);
+              },
+              onPageChanged: (page, total) {
+                if (mounted) setState(() => _currentPage = page ?? 0);
+              },
+              onError: (e) {
+                if (mounted) setState(() => _error = 'Gagal membuka PDF: $e');
+              },
+              onPageError: (page, e) {
+                if (mounted) setState(() => _error = 'Error halaman $page: $e');
+              },
+            ),
     );
   }
 }

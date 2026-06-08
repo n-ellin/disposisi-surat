@@ -4,13 +4,18 @@ import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
 
 class InputSuratMasuk extends StatefulWidget {
-  const InputSuratMasuk({super.key, required Map<String, dynamic> surat});
+  final Map<String, dynamic> surat;
+  const InputSuratMasuk({super.key, required this.surat});
 
   @override
   State<InputSuratMasuk> createState() => _InputSuratMasukState();
 }
 
 class _InputSuratMasukState extends State<InputSuratMasuk> {
+  Map<String, dynamic> get _suratData => widget.surat['data'] ?? widget.surat;
+  List<String> get _lampiranUrls =>
+      List<String>.from(widget.surat['lampiran'] ?? []);
+
   /// Controller untuk input catatan disposisi surat keluar.
   final TextEditingController catatanController = TextEditingController();
 
@@ -22,16 +27,6 @@ class _InputSuratMasukState extends State<InputSuratMasuk> {
 
   /// Menyimpan pesan error pada field catatan.
   String? catatanError;
-
-  /// Flag kontrol tampilan lampiran (untuk kebutuhan UI).
-  bool _showLampiran = false;
-
-  /// Data lampiran surat keluar untuk preview.
-  static const List<String> _attachmentUrls = [
-    'assets/images/undangan.png',
-    'assets/images/undangan.png',
-    'assets/images/logo.png',
-  ];
 
   /// Membersihkan controller ketika widget dihancurkan.
   @override
@@ -339,19 +334,33 @@ class _InputSuratMasukState extends State<InputSuratMasuk> {
           children: [
             _detailItem(
               Icons.numbers,
-              "Nomor Surat",
-              "421.3/045/SMK-TI/VI/2026",
+              'Nomor Surat',
+              _suratData['No Surat']?.toString() ??
+                  widget.surat['no_surat']?.toString() ??
+                  '-',
             ),
-            _detailItem(Icons.calendar_today, "Tanggal", "24 Juni 2026"),
-            _detailItem(Icons.person, "Pengirim", "SMKN 1 Singosari"),
+            _detailItem(
+              Icons.calendar_today,
+              'Tanggal',
+              widget.surat['tanggal']?.toString() ?? '-',
+            ),
+            _detailItem(
+              Icons.person,
+              'Pengirim',
+              _suratData['Dari']?.toString() ??
+                  widget.surat['asal_surat']?.toString() ??
+                  '-',
+            ),
             _detailItem(
               Icons.description,
-              "Perihal",
-              "Permohonan Izin Menghadiri Rapat",
+              'Perihal',
+              _suratData['Perihal']?.toString() ??
+                  widget.surat['perihal_surat']?.toString() ??
+                  '-',
             ),
             const SizedBox(height: 8),
             Text(
-              "Lampiran",
+              'Lampiran',
               style: TextStyle(
                 color: Colors.grey.shade600,
                 fontSize: 14,
@@ -359,24 +368,22 @@ class _InputSuratMasukState extends State<InputSuratMasuk> {
               ),
             ),
             const SizedBox(height: 8),
-            if (_attachmentUrls.isEmpty)
+            if (_lampiranUrls.isEmpty)
               Text(
-                "Tidak ada lampiran",
+                'Tidak ada lampiran',
                 style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
               )
             else
               GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FullScreenImageViewer(
-                        imageUrls: _attachmentUrls,
-                        initialIndex: 0,
-                      ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => FullScreenImageViewer(
+                      imageUrls: _lampiranUrls,
+                      initialIndex: 0,
                     ),
-                  );
-                },
+                  ),
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -396,7 +403,7 @@ class _InputSuratMasukState extends State<InputSuratMasuk> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        "${_attachmentUrls.length} File Lampiran",
+                        '${_lampiranUrls.length} File Lampiran',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
@@ -493,17 +500,6 @@ class _InputSuratMasukState extends State<InputSuratMasuk> {
           ),
         ),
       ],
-    );
-  }
-
-  /// Label field input.
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-      ),
     );
   }
 

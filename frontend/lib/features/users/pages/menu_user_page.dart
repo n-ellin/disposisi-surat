@@ -3,7 +3,7 @@ import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.d
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 import 'package:ta_mobile_disposisi_surat/features/notifications/notification_page.dart';
@@ -38,35 +38,47 @@ class _MenuUserState extends State<MenuUser> {
   String searchQuery = '';
   late List<Map<String, dynamic>> notifications;
 
-  // TODO: aktifkan kalau BE sudah ready
-  // final _suratRepo = SuratRepository();
-  // Future<void> _loadData() async {
-  //   try {
-  //     final masuk = await _suratRepo.getSuratMasukList();
-  //     if (!mounted) return;
-  //     setState(() {
-  //       _suratMasukList = List<Map<String, dynamic>>.from(masuk);
-  //     });
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('Gagal load data: $e'), backgroundColor: Colors.red),
-  //     );
-  //   }
-  // }
-
+  final _suratRepo = SuratRepository();
+  List<Map<String, dynamic>> _suratMasukList = [];
+  bool _isLoading = true;
   @override
   void initState() {
     super.initState();
     notifications = List.from(notifUser);
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final masuk = await _suratRepo.getSuratMasukList();
+      if (!mounted) return;
+      setState(() {
+        _suratMasukList = masuk;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
   }
 
   /// Ambil data dummy sesuai role
   List<Map<String, dynamic>> get _suratList {
-    return SuratDummy.suratUntukRole(
-      widget.role,
-      jabatan: widget.jabatan,
-    ).map((s) => {...s, 'jenisSurat': 'Surat Masuk'}).toList();
+    return _suratMasukList
+        .map(
+          (s) => {
+            ...s,
+            'jenisSurat': 'Surat Masuk',
+            'tanggal': s['tanggal_surat']?.toString() ?? '-',
+            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
+            'data': {
+              'No Surat': s['no_surat']?.toString() ?? '-',
+              'Perihal': s['perihal_surat']?.toString() ?? '-',
+              'Dari': s['asal_surat']?.toString() ?? '-',
+            },
+          },
+        )
+        .toList();
   }
 
   List<Map<String, dynamic>> get filteredSurat {
@@ -124,6 +136,9 @@ class _MenuUserState extends State<MenuUser> {
       return (w * (size / 375)).clamp(size * 0.85, size * 1.2);
     }
 
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
       backgroundColor: AppColors.bg,
 

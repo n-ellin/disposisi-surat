@@ -142,15 +142,18 @@ class OutputSuratkeluar extends StatelessWidget {
                               ),
                             ),
                             onPressed: () {
+                              if (lampiranUrls.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tidak ada lampiran'),
+                                  ),
+                                );
+                                return;
+                              }
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => FullScreenImageViewer(
-                                    imageAssetPath:
-                                        'assets/images/undangan.png',
-                                    imageUrls: const [
-                                      'assets/images/undangan.png',
-                                      'assets/images/logo.png',
-                                    ],
+                                    imageUrls: lampiranUrls,
                                     initialIndex: 0,
                                   ),
                                 ),
