@@ -145,7 +145,8 @@ class _LoginState extends State<Login> {
 
     if (roleStr == 'admin') {
       setState(() {
-        _passwordError = 'Akun admin tidak tersedia di aplikasi mobile';
+        _emailError = 'Akun admin tidak tersedia di aplikasi mobile';
+        _passwordError = null;
         _isLoading = false;
       });
       return;
