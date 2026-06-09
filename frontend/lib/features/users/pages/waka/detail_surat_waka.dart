@@ -632,11 +632,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       hasError = true;
     }
 
-    if (_catatanDisposisiCtrl.text.trim().isEmpty) {
-      setState(() => _showCatatanError = true);
-      hasError = true;
-    }
-
     if (hasError) return;
 
     final payload = {
@@ -667,91 +662,61 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   void _showSuccessDialog(BuildContext context, String message) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
+      barrierDismissible: false,
       builder: (_) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          elevation: 0,
+        return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(rf(context, 16)),
+            borderRadius: BorderRadius.circular(16),
           ),
-          child: Padding(
-            padding: EdgeInsets.all(rf(context, 20)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ICON SUCCESS
-                Container(
-                  width: rf(context, 60),
-                  height: rf(context, 60),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
+          contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Berhasil',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                    size: rf(context, 36),
-                  ),
-                ),
+                ],
+              ),
 
-                SizedBox(height: rf(context, 12)),
+              const SizedBox(height: 16),
 
-                // TITLE
-                Text(
-                  'Berhasil',
-                  style: TextStyle(
-                    fontSize: rf(context, 18),
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-
-                SizedBox(height: rf(context, 8)),
-
-                // MESSAGE
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: rf(context, 14),
-                    color: Colors.grey.shade700,
-                    height: 1.4,
+              Text(
+                message,
+                style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 16, bottom: 12),
+          actions: [
+            SizedBox(
+              width: 84,
+              height: 42,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.bluePrimary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-
-                SizedBox(height: rf(context, 18)),
-
-                // BUTTON
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.bluePrimary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(vertical: rf(context, 12)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(rf(context, 10)),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      'OK',
-                      style: TextStyle(
-                        fontSize: rf(context, 14),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                onPressed: () {
+                  Navigator.pop(context); // tutup dialog
+                  Navigator.pop(context); // kembali ke halaman sebelumnya
+                },
+                child: const Text(
+                  'OK',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         );
       },
     );

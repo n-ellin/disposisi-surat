@@ -83,99 +83,87 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
           surfaceTintColor: Colors.white,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            constraints: const BoxConstraints(maxWidth: 320),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ICON
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: (isApproved ? Colors.green : Colors.red).withValues(
-                      alpha: 0.1,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isApproved ? Icons.check_circle : Icons.close,
-                    color: isApproved ? Colors.green : Colors.red,
-                    size: 34,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
                 // TITLE
                 Text(
                   isApproved ? "Terima Surat" : "Tolak Surat",
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
                     fontSize: 18,
+                    fontWeight: FontWeight.w700,
                     color: Colors.black87,
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
                 // MESSAGE
                 Text(
                   isApproved
                       ? "Apakah Anda yakin ingin menerima surat ini?"
                       : "Apakah Anda yakin ingin menolak surat ini?",
-                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade700,
+                    color: Colors.grey.shade600,
                     height: 1.4,
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
 
                 // BUTTONS
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // BATAL
-                    Expanded(
+                    SizedBox(
+                      height: 36,
                       child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
+                          foregroundColor: Colors.grey.shade600,
                           side: BorderSide(color: Colors.grey.shade300),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
                         ),
-                        onPressed: () => Navigator.pop(context),
                         child: const Text("Batal"),
                       ),
                     ),
 
                     const SizedBox(width: 10),
 
-                    // KONFIRMASI
-                    Expanded(
+                    SizedBox(
+                      height: 36,
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isApproved
-                              ? Colors.green
-                              : Colors.red,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
                         onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.pop(context);
+                          Navigator.pop(context); // tutup dialog
+                          Navigator.pop(
+                            context,
+                          ); // kembali ke halaman sebelumnya
                         },
-                        child: const Text("Yakin"),
+                        style: ElevatedButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor: isApproved
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                        ),
+                        child: const Text(
+                          "Yakin",
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ),
                   ],
