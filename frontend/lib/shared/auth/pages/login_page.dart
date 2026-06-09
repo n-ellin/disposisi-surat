@@ -64,6 +64,13 @@ class _LoginState extends State<Login> {
       'nama': 'Waka Humas',
       'jabatan': 'Waka Humas',
     },
+    {
+      'email': 'dummy_admin@gmail.com',
+      'password': '12345',
+      'role': 'admin',
+      'nama': 'Administrator',
+      'jabatan': 'Admin',
+    },
   ];
 
   // ================= LOGIN =================
@@ -92,6 +99,7 @@ class _LoginState extends State<Login> {
       final nama = user['nama']?.toString() ?? '';
       final jabatan = user['jabatan']?.toString() ?? '';
 
+      //GA JALAN INI
       if (roleStr == 'admin') {
         setState(() {
           _emailError = 'Akun admin tidak tersedia di aplikasi mobile';
