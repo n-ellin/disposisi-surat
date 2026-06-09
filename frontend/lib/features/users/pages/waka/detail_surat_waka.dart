@@ -230,7 +230,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             ),
           ),
           SizedBox(height: h * 0.01),
-      if (_attachmentUrls.isEmpty)
+          if (_attachmentUrls.isEmpty)
             Text(
               'Tidak ada lampiran',
               style: TextStyle(
@@ -1170,7 +1170,7 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOut,
                 left: rf(42),
-                top: _hasContent ? rf(-7) : rf(13),
+                top: _hasContent ? rf(-7) : rf(16),
                 child: AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 160),
                   style: TextStyle(

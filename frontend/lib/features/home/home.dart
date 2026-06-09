@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
 
 // TODO: BE — hapus import dummy & aktifkan kembali SuratRepository saat API sudah siap
 // import '../../../data/repositories/surat_repository.dart';
 // Tambah import di atas
-import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
+// import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart'; // DUMMY: di-comment, pakai data dummy
 
 import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
@@ -78,7 +79,7 @@ class _HomeState extends State<Home> {
   // final _suratRepo = SuratRepository();
 
   // STATE
-  final _suratRepo = SuratRepository(); // ← di sini
+  // final _suratRepo = SuratRepository(); // DUMMY: di-comment, tidak pakai API
   List<Map<String, dynamic>> _suratMasukList = [];
   List<Map<String, dynamic>> _suratKeluarList = [];
   bool _isLoading = true;
@@ -132,27 +133,18 @@ class _HomeState extends State<Home> {
   // =========================
   Future<void> _loadData() async {
     if (!mounted) return;
+
     setState(() => _isLoading = true);
 
-    try {
-      final masuk = await _suratRepo.getSuratMasukList();
-      final keluar = await _suratRepo.getSuratKeluarList();
-      if (!mounted) return;
-      setState(() {
-        _suratMasukList = masuk;
-        _suratKeluarList = keluar;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memuat data: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) return;
+
+    setState(() {
+      _suratMasukList = List<Map<String, dynamic>>.from(SuratDummy.masuk);
+      _suratKeluarList = List<Map<String, dynamic>>.from(SuratDummy.keluar);
+      _isLoading = false;
+    });
   }
 
   // =========================
@@ -201,14 +193,10 @@ class _HomeState extends State<Home> {
         .map(
           (s) => {
             ...s,
-            'jenisSurat': 'Surat Masuk',
-            'tanggal': _formatTanggal(s['tanggal_surat']?.toString() ?? ''),
-            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
-            'data': {
-              'No Surat': s['no_surat']?.toString() ?? '-',
-              'Perihal': s['perihal_surat']?.toString() ?? '-',
-              'Dari': s['asal_surat']?.toString() ?? '-',
-            },
+            'jenisSurat': s['jenisSurat'],
+            'tanggal': s['tanggal'],
+            'status': s['status'],
+            'data': s['data'],
           },
         )
         .toList();
@@ -217,14 +205,10 @@ class _HomeState extends State<Home> {
         .map(
           (s) => {
             ...s,
-            'jenisSurat': 'Surat Keluar',
-            'tanggal': _formatTanggal(s['tanggal_surat']?.toString() ?? ''),
-            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
-            'data': {
-              'No Surat': s['no_surat']?.toString() ?? '-',
-              'Perihal': s['perihal']?.toString() ?? '-',
-              'Dari': s['tujuan']?.toString() ?? '-',
-            },
+            'jenisSurat': s['jenisSurat'],
+            'tanggal': s['tanggal'],
+            'status': s['status'],
+            'data': s['data'],
           },
         )
         .toList();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
 
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
@@ -8,7 +9,7 @@ import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_disposisi_surat_masuk_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
 
-import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
+//import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 class TuDashboardPage extends StatefulWidget {
   final String jenisSurat;
@@ -20,7 +21,7 @@ class TuDashboardPage extends StatefulWidget {
 }
 
 class _TuDashboardPageState extends State<TuDashboardPage> {
-  final _repo = SuratRepository();
+  //final _repo = SuratRepository();
 
   List<Map<String, dynamic>> _suratList = [];
   bool _isLoading = true;
@@ -36,104 +37,33 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
   Future<void> _fetchSurat() async {
     setState(() => _isLoading = true);
 
-    try {
-      final isMasuk = widget.jenisSurat == 'Surat Masuk';
+    await Future.delayed(const Duration(milliseconds: 300));
 
-      final raw = isMasuk
-          ? await _repo.getSuratMasukList()
-          : await _repo.getSuratKeluarList();
+    if (!mounted) return;
 
-      if (!mounted) return;
+    setState(() {
+      _suratList =
+          (widget.jenisSurat == 'Surat Masuk'
+                  ? SuratDummy.masuk
+                  : SuratDummy.keluar)
+              .map(
+                (s) => {
+                  ...s,
+                  'status': s['status'] == 'menunggu'
+                      ? 'diproses'
+                      : s['status'],
+                },
+              )
+              .toList();
 
-      setState(() {
-        _suratList = raw
-            .map(
-              (item) => isMasuk ? _mapSuratMasuk(item) : _mapSuratKeluar(item),
-            )
-            .toList();
-
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() => _isLoading = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal memuat data: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Map<String, dynamic> _mapSuratMasuk(Map<String, dynamic> item) {
-    final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
-
-    return {
-      ...item,
-      'jenisSurat': 'Surat Masuk',
-      'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
-      'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
-      'catatan': item['catatan'] ?? item['catatan_verifikasi'] ?? '',
-      'lampiran': item['lampiran'] ?? [],
-      'data': {
-        'No Surat': item['no_surat']?.toString() ?? '-',
-        'Perihal': item['perihal_surat']?.toString() ?? '-',
-        'Dari': item['asal_surat']?.toString() ?? '-',
-      },
-    };
-  }
-
-  Map<String, dynamic> _mapSuratKeluar(Map<String, dynamic> item) {
-    final statusRaw = item['status_verifikasi']?.toString() ?? 'menunggu';
-
-    return {
-      ...item,
-      'jenisSurat': 'Surat Keluar',
-      'tanggal': _formatTanggal(item['tanggal_surat']?.toString() ?? ''),
-      'status': statusRaw == 'menunggu' ? 'diproses' : statusRaw,
-      'catatan': item['catatan'] ?? item['catatan_verifikasi'] ?? '',
-      'lampiran': item['lampiran'] ?? [],
-      'data': {
-        'No Surat': item['no_surat']?.toString() ?? '-',
-        'Perihal': item['perihal']?.toString() ?? '-',
-        'Dari': item['tujuan']?.toString() ?? '-',
-      },
-    };
-  }
-
-  String _formatTanggal(String isoDate) {
-    try {
-      final dt = DateTime.parse(isoDate);
-
-      const months = [
-        '',
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'Mei',
-        'Jun',
-        'Jul',
-        'Agu',
-        'Sep',
-        'Okt',
-        'Nov',
-        'Des',
-      ];
-
-      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
-    } catch (_) {
-      return isoDate;
-    }
+      _isLoading = false;
+    });
   }
 
   List<Map<String, dynamic>> get _allSurat => _suratList;
 
   List<Map<String, dynamic>> get _filteredSurat {
-    List<Map<String, dynamic>> result = _allSurat;
+    List<Map<String, dynamic>> result = List.from(_allSurat);
 
     if (_selectedFilter != 'semua') {
       result = result.where((s) {
@@ -145,9 +75,13 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
     if (_searchQuery.isNotEmpty) {
       result = result.where((s) {
         final query = _searchQuery.toLowerCase();
+
         final tanggal = (s['tanggal'] ?? '').toString().toLowerCase();
+
         final status = (s['status'] ?? '').toString().toLowerCase();
+
         final dari = (s['data']?['Dari'] ?? '').toString().toLowerCase();
+
         final perihal = (s['data']?['Perihal'] ?? '').toString().toLowerCase();
 
         return tanggal.contains(query) ||
@@ -157,20 +91,43 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
       }).toList();
     }
 
-    // ✅ Tambahkan ini — terbaru di atas
     result.sort((a, b) {
-      try {
-        final dateA = DateTime.parse(a['tanggal_surat']?.toString() ?? '');
+      final dateA = _parseDate(a['tanggal'] ?? '');
+      final dateB = _parseDate(b['tanggal'] ?? '');
 
-        final dateB = DateTime.parse(b['tanggal_surat']?.toString() ?? '');
-
-        return dateB.compareTo(dateA);
-      } catch (_) {
-        return 0;
-      }
+      return dateB.compareTo(dateA);
     });
 
     return result;
+  }
+
+  DateTime _parseDate(String tanggal) {
+    const bulan = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'Mei': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Agu': 8,
+      'Sep': 9,
+      'Okt': 10,
+      'Nov': 11,
+      'Des': 12,
+    };
+
+    try {
+      final parts = tanggal.trim().split(' ');
+
+      return DateTime(
+        int.parse(parts[2]),
+        bulan[parts[1]] ?? 1,
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return DateTime(2000);
+    }
   }
 
   final Map<String, Color> filterColors = {

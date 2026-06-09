@@ -3,8 +3,9 @@ import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.d
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
-import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
+//import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
+import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 import 'package:ta_mobile_disposisi_surat/features/notifications/notification_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
@@ -12,9 +13,6 @@ import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
 
 import 'package:ta_mobile_disposisi_surat/features/users/pages/user/detail_surat_user.dart';
 import 'package:ta_mobile_disposisi_surat/features/users/pages/waka/detail_surat_waka.dart';
-
-// TODO: aktifkan kalau BE sudah ready
-// import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 class MenuUser extends StatefulWidget {
   final String nama;
@@ -38,8 +36,7 @@ class _MenuUserState extends State<MenuUser> {
   String searchQuery = '';
   late List<Map<String, dynamic>> notifications;
 
-  final _suratRepo = SuratRepository();
-  List<Map<String, dynamic>> _suratMasukList = [];
+  List<Map<String, dynamic>> _suratList = [];
   bool _isLoading = true;
   @override
   void initState() {
@@ -49,57 +46,92 @@ class _MenuUserState extends State<MenuUser> {
   }
 
   Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (!mounted) return;
+
+    print('ROLE: ${widget.role}');
+    print('JABATAN: "${widget.jabatan}"');
+
+    setState(() {
+      _suratList = SuratDummy.suratUntukRole(
+        widget.role,
+        jabatan: widget.jabatan,
+      );
+
+      print(_suratList);
+
+      _isLoading = false;
+    });
+  }
+
+  DateTime _parseDate(String tanggal) {
+    const bulan = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'Mei': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Agu': 8,
+      'Sep': 9,
+      'Okt': 10,
+      'Nov': 11,
+      'Des': 12,
+    };
+
     try {
-      final masuk = await _suratRepo.getSuratMasukList();
-      if (!mounted) return;
-      setState(() {
-        _suratMasukList = masuk;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      final parts = tanggal.trim().split(' ');
+
+      return DateTime(
+        int.parse(parts[2]),
+        bulan[parts[1]]!,
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return DateTime(2000);
     }
   }
 
-  /// Ambil data dummy sesuai role
-  List<Map<String, dynamic>> get _suratList {
-    return _suratMasukList
-        .map(
-          (s) => {
-            ...s,
-            'jenisSurat': 'Surat Masuk',
-            'tanggal': s['tanggal_surat']?.toString() ?? '-',
-            'status': s['status_verifikasi']?.toString() ?? 'menunggu',
-            'data': {
-              'No Surat': s['no_surat']?.toString() ?? '-',
-              'Perihal': s['perihal_surat']?.toString() ?? '-',
-              'Dari': s['asal_surat']?.toString() ?? '-',
-            },
-          },
-        )
-        .toList();
-  }
-
   List<Map<String, dynamic>> get filteredSurat {
-    if (searchQuery.isEmpty) return _suratList;
+    List<Map<String, dynamic>> result = [..._suratList];
 
-    return _suratList.where((surat) {
+    if (searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
-      final jenis = surat['jenisSurat'].toString().toLowerCase();
-      final tanggal = surat['tanggal'].toString().toLowerCase();
-      final status = surat['status'].toString().toLowerCase();
-      final dari = (surat['data']?['Dari'] ?? '').toString().toLowerCase();
-      final perihal = (surat['data']?['Perihal'] ?? '')
-          .toString()
-          .toLowerCase();
 
-      return jenis.contains(query) ||
-          tanggal.contains(query) ||
-          status.contains(query) ||
-          dari.contains(query) ||
-          perihal.contains(query);
-    }).toList();
+      result = result.where((surat) {
+        final jenis = surat['jenisSurat'].toString().toLowerCase();
+
+        final tanggal = surat['tanggal'].toString().toLowerCase();
+
+        final status = surat['status'].toString().toLowerCase();
+
+        final dari = (surat['data']?['Dari'] ?? '').toString().toLowerCase();
+
+        final perihal = (surat['data']?['Perihal'] ?? '')
+            .toString()
+            .toLowerCase();
+
+        return jenis.contains(query) ||
+            tanggal.contains(query) ||
+            status.contains(query) ||
+            dari.contains(query) ||
+            perihal.contains(query);
+      }).toList();
+    }
+
+    result.sort((a, b) {
+      final dateA = _parseDate(a['tanggal']?.toString() ?? '');
+
+      final dateB = _parseDate(b['tanggal']?.toString() ?? '');
+
+      return dateB.compareTo(dateA);
+    });
+
+    return result;
   }
 
   int get notifCount => notifications.where((n) => n['isRead'] == false).length;

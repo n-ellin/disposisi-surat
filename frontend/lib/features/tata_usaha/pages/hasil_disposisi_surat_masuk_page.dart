@@ -343,55 +343,70 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     return Column(
       children: options.map((opt) {
         final isSelected = _selectedWaka == opt['value'];
+
         return GestureDetector(
-          onTap: () => setState(() => _selectedWaka = opt['value']),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+          onTap: () => setState(() {
+            _selectedWaka = opt['value']!;
+          }),
+          child: Container(
             margin: EdgeInsets.only(bottom: h * 0.01),
             padding: EdgeInsets.symmetric(
-              horizontal: w * 0.04,
-              vertical: h * 0.014,
+              horizontal: w * 0.035,
+              vertical: h * 0.010, // sebelumnya 0.015
             ),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFE6F1FB) : Colors.white,
+              color: isSelected ? const Color(0xFFEAF4FF) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
-                    ? const Color(0xFF378ADD)
+                    ? AppColors.bluePrimary
                     : Colors.grey.shade300,
-                width: isSelected ? 1.5 : 0.5,
+                width: isSelected ? 1.5 : 1,
               ),
-              borderRadius: BorderRadius.circular(w * 0.025),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Radio<String>(
                   value: opt['value']!,
                   groupValue: _selectedWaka,
-                  onChanged: (v) => setState(() => _selectedWaka = v),
-                  activeColor: const Color(0xFF378ADD),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedWaka = value;
+                    });
+                  },
+                  activeColor: AppColors.bluePrimary,
                   visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+
                 SizedBox(width: w * 0.02),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      opt['label']!,
-                      style: TextStyle(
-                        fontSize: rf(14, w),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black87,
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        opt['label']!,
+                        style: TextStyle(
+                          fontSize: rf(14, w),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    Text(
-                      opt['sub']!,
-                      style: TextStyle(
-                        fontSize: rf(11, w),
-                        color: Colors.grey.shade500,
+
+                      SizedBox(height: 2),
+
+                      Text(
+                        opt['sub']!,
+                        style: TextStyle(
+                          fontSize: rf(11, w), // sebelumnya 12
+                          color: Colors.grey.shade600,
+                          height: 1.2, // rapatkan antar baris
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

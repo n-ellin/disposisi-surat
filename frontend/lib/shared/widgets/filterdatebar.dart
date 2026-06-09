@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_color.dart';
 
 class DateFilterBar extends StatelessWidget {
   final String label;
@@ -20,7 +21,7 @@ class DateFilterBar extends StatelessWidget {
         width: double.infinity,
         padding: EdgeInsets.symmetric(
           horizontal: w * 0.035,
-          vertical: 14,
+          vertical: 10,
         ),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -32,7 +33,7 @@ class DateFilterBar extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.calendar_today_rounded, size: 18),
+                const Icon(Icons.calendar_today_rounded, size: 18 , color: AppColors.bluePrimary,),
                 const SizedBox(width: 8),
                 Text(label),
               ],

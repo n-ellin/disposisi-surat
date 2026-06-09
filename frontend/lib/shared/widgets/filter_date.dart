@@ -146,6 +146,10 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
       if (month < 1 || month > 12) return null;
       if (year < _firstDate.year || year > _lastDate.year) return null;
       final date = DateTime(year, month, day);
+
+      if (date.year != year || date.month != month || date.day != day) {
+        return null;
+      }
       // Validasi tidak melebihi hari ini
       if (date.isAfter(_lastDate)) return null;
       return date;
@@ -568,18 +572,23 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
   @override
   void initState() {
     super.initState();
+
     _focusedDay = widget.initialDate;
     _selectedDay = widget.initialDate;
+
     _tempMonth = widget.initialDate.month;
     _tempYear = widget.initialDate.year;
 
+    final minMonth = _tempYear == widget.firstDate.year
+        ? widget.firstDate.month
+        : 1;
+
     _monthScrollCtrl = FixedExtentScrollController(
-      initialItem: widget.initialDate.month - 1,
+      initialItem: _tempMonth - minMonth,
     );
+
     _yearScrollCtrl = FixedExtentScrollController(
-      initialItem: _validYears
-          .indexOf(widget.initialDate.year)
-          .clamp(0, _validYears.length - 1),
+      initialItem: _validYears.indexOf(_tempYear),
     );
   }
 
@@ -593,7 +602,11 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
   void _openPicker() {
     _tempMonth = _focusedDay.month;
     _tempYear = _focusedDay.year;
-    _monthScrollCtrl.jumpToItem(_tempMonth - 1);
+    final minMonth = _tempYear == widget.firstDate.year
+        ? widget.firstDate.month
+        : 1;
+
+    _monthScrollCtrl.jumpToItem(_tempMonth - minMonth);
     _yearScrollCtrl.jumpToItem(
       _validYears.indexOf(_tempYear).clamp(0, _validYears.length - 1),
     );
@@ -663,9 +676,12 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
                         ),
                       );
                   return SlideTransition(
-                    position: child.key == const ValueKey('picker')
-                        ? inFromRight
-                        : outToLeft,
+                    position: Tween<Offset>(
+                      begin: child.key == const ValueKey('picker')
+                          ? const Offset(1, 0)
+                          : const Offset(-1, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
                     child: child,
                   );
                 },
@@ -850,6 +866,14 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
     const visibleItems = 5;
     const pickerHeight = itemHeight * visibleItems;
 
+    final minMonth = _tempYear == widget.firstDate.year
+        ? widget.firstDate.month
+        : 1;
+
+    final maxMonth = _tempYear == widget.lastDate.year
+        ? widget.lastDate.month
+        : 12;
+
     return KeyedSubtree(
       key: const ValueKey('picker'),
       child: Column(
@@ -941,21 +965,19 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
                         diameterRatio: 4.0,
                         physics: const FixedExtentScrollPhysics(),
                         onSelectedItemChanged: (index) {
-                          setState(() => _tempMonth = index + 1);
+                          setState(() {
+                            _tempMonth = minMonth + index;
+                          });
                         },
                         childDelegate: ListWheelChildBuilderDelegate(
-                          childCount: 12,
+                          childCount: maxMonth - minMonth + 1,
                           builder: (context, index) {
-                            final month = index + 1;
+                            final month = minMonth + index;
                             final isSelected = _tempMonth == month;
-                            final isEnabled =
-                                !(_tempYear == widget.lastDate.year &&
-                                    month > widget.lastDate.month) &&
-                                !(_tempYear == widget.firstDate.year &&
-                                    month < widget.firstDate.month);
+
                             return Center(
                               child: Text(
-                                _monthNames[index],
+                                _monthNames[month - 1],
                                 style: TextStyle(
                                   fontSize: (w * 0.037).clamp(13.0, 16.0),
                                   fontWeight: isSelected
@@ -963,9 +985,7 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
                                       : FontWeight.w400,
                                   color: isSelected
                                       ? AppColors.bluePrimary
-                                      : isEnabled
-                                      ? Colors.grey.shade700
-                                      : Colors.grey.shade300,
+                                      : Colors.grey.shade700,
                                 ),
                               ),
                             );
@@ -991,7 +1011,28 @@ class _TableCalendarDialogState extends State<_TableCalendarDialog> {
                         diameterRatio: 4.0,
                         physics: const FixedExtentScrollPhysics(),
                         onSelectedItemChanged: (index) {
-                          setState(() => _tempYear = _validYears[index]);
+                          setState(() {
+                            _tempYear = _validYears[index];
+
+                            final minMonth = _tempYear == widget.firstDate.year
+                                ? widget.firstDate.month
+                                : 1;
+
+                            final maxMonth = _tempYear == widget.lastDate.year
+                                ? widget.lastDate.month
+                                : 12;
+
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (_monthScrollCtrl.hasClients) {
+                                _monthScrollCtrl.jumpToItem(0);
+                              }
+                            });
+
+                            if (_tempMonth > maxMonth) {
+                              _tempMonth = maxMonth;
+                              _monthScrollCtrl.jumpToItem(maxMonth - minMonth);
+                            }
+                          });
                         },
                         childDelegate: ListWheelChildBuilderDelegate(
                           childCount: _validYears.length,

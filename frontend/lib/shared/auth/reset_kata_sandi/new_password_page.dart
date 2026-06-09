@@ -191,7 +191,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               ),
               SizedBox(height: sh * 0.020),
               Text(
-                'Password Berhasil Diubah!',
+                'Kata sandi Berhasil Diubah!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -200,7 +200,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               ),
               SizedBox(height: sh * 0.010),
               Text(
-                'Silakan login menggunakan\npassword baru kamu.',
+                'Silakan masuk menggunakan\nkata sandi baru kamu.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: sw * 0.033,
@@ -234,7 +234,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                     ),
                   ),
                   child: Text(
-                    'Ke Halaman Login',
+                    'Ke Halaman Masuk',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: (sw * 0.042).clamp(15.0, 18.0),
@@ -362,7 +362,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
                   // ── Title ────────────────────────────
                   Text(
-                    'Password Baru',
+                    'Kata Sandi Baru',
                     style: TextStyle(
                       fontSize: titleSize,
                       fontWeight: FontWeight.w700,
@@ -371,7 +371,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                   ),
                   SizedBox(height: spacingS),
                   Text(
-                    'Buat password baru untuk akunmu.\nPastikan mudah diingat tapi sulit ditebak.',
+                    'Buat kata sandi baru untuk akunmu.\nPastikan mudah diingat tapi sulit ditebak.',
                     style: TextStyle(
                       fontSize: bodySize,
                       color: Colors.black45,
@@ -383,7 +383,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
                   // ── Password ─────────────────────────
                   Text(
-                    'Password Baru',
+                    'Kata Sandi Baru',
                     style: TextStyle(
                       fontSize: labelSize,
                       fontWeight: FontWeight.w600,
@@ -414,7 +414,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                     ),
                     validator: (_) {
                       if (_passwordReal.isEmpty) {
-                        return 'Password tidak boleh kosong';
+                        return 'Kata sandi tidak boleh kosong';
                       }
                       return null;
                     },
@@ -448,7 +448,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
                   // ── Confirm Password ─────────────────
                   Text(
-                    'Konfirmasi Password',
+                    'Konfirmasi Kata Sandi',
                     style: TextStyle(
                       fontSize: labelSize,
                       fontWeight: FontWeight.w600,
@@ -462,7 +462,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                     onChanged: _onConfirmChanged,
                     style: TextStyle(fontSize: bodySize),
                     decoration: _inputDecoration(
-                      hint: 'Ulangi password baru',
+                      hint: 'Ulangi Kata Sandi Baru',
                       prefixIcon: Icons.lock_outline,
                       sw: sw,
                       sh: sh,
@@ -479,7 +479,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                     ),
                     validator: (_) {
                       if (_confirmReal.isEmpty) {
-                        return 'Konfirmasi password wajib diisi';
+                        return 'Konfirmasi kata sandi wajib diisi';
                       }
                       return null;
                     },
@@ -490,8 +490,8 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                       padding: EdgeInsets.only(top: spacingM),
                       child: _buildValidation(
                         passwordMatch
-                            ? 'Konfirmasi password cocok'
-                            : 'Konfirmasi password tidak cocok',
+                            ? 'Konfirmasi kata sandi cocok'
+                            : 'Konfirmasi kata sandi tidak cocok',
                         passwordMatch,
                         sw,
                       ),
@@ -534,7 +534,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                               ),
                             )
                           : Text(
-                              'Simpan Password',
+                              'Simpan Kata Sandi',
                               style: TextStyle(
                                 fontSize: (sw * 0.045).clamp(16.0, 18.0),
                                 fontWeight: FontWeight.w600,
