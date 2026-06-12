@@ -10,7 +10,7 @@ import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_kepsek_pag
 import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_waka_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_user_page.dart';
 
-import 'package:ta_mobile_disposisi_surat/shared/auth/change_password_page.dart';
+import '../../shared/auth/ganti_kata_sandi/input_email_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/pages/login_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 

@@ -21,87 +21,51 @@ class Session {
   // ── History TU Filter ─────────────────────────────────
   static String historySearchQuery = '';
   static String historyStatusFilter = 'semua';
-  static String historyDateFilter = 'Hari ini';
-  static String historyActiveChip = 'Hari ini';
-  static DateTime? historyStartDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
-  static DateTime? historyEndDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-    23,
-    59,
-    59,
-  );
+  static String historyDateFilter = 'Semua';
+  static String historyActiveChip = 'Semua';
+  static DateTime? historyStartDate = null;
+  static DateTime? historyEndDate = null;
 
   // ── History Kepsek Filter ─────────────────────────────
   static String kepsekSearchQuery = '';
   static String kepsekJenisFilter = 'semua';
-  static String kepsekDateFilter = 'Hari ini';
-  static String kepsekActiveChip = 'Hari ini';
-  static DateTime? kepsekStartDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
-  static DateTime? kepsekEndDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-    23,
-    59,
-    59,
-  );
+  static String kepsekDateFilter = 'Semua';
+  static String kepsekActiveChip = 'Semua';
+  static DateTime? kepsekStartDate = null;
+  static DateTime? kepsekEndDate = null;
 
   // ── History Users Filter ───────────────────────────────
   static String userHistorySearchQuery = '';
-  static String userHistoryDateFilter = 'Hari ini';
-  static String userHistoryActiveChip = 'Hari ini';
-  static DateTime? userHistoryStartDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
-  static DateTime? userHistoryEndDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-    23,
-    59,
-    59,
-  );
+  static String userHistoryDateFilter = 'Semua';
+  static String userHistoryActiveChip = 'Semua';
+  static DateTime? userHistoryStartDate = null;
+  static DateTime? userHistoryEndDate = null;
 
   // ── Reset saat logout ─────────────────────────────────
   static void resetHistoryFilter() {
-    final now = DateTime.now();
     historySearchQuery = '';
     historyStatusFilter = 'semua';
-    historyDateFilter = 'Hari ini';
-    historyActiveChip = 'Hari ini';
-    historyStartDate = DateTime(now.year, now.month, now.day);
-    historyEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    historyDateFilter = 'Semua';
+    historyActiveChip = 'Semua';
+    historyStartDate = null;
+    historyEndDate = null;
   }
 
   static void resetKepsekFilter() {
-    final now = DateTime.now();
     kepsekSearchQuery = '';
     kepsekJenisFilter = 'semua';
-    kepsekDateFilter = 'Hari ini';
-    kepsekActiveChip = 'Hari ini';
-    kepsekStartDate = DateTime(now.year, now.month, now.day);
-    kepsekEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    kepsekDateFilter = 'Semua';
+    kepsekActiveChip = 'Semua';
+    kepsekStartDate = null;
+    kepsekEndDate = null;
   }
 
   static void resetUserHistoryFilter() {
-    final now = DateTime.now();
     userHistorySearchQuery = '';
-    userHistoryDateFilter = 'Hari ini';
-    userHistoryActiveChip = 'Hari ini';
-    userHistoryStartDate = DateTime(now.year, now.month, now.day);
-    userHistoryEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    userHistoryDateFilter = 'Semua';
+    userHistoryActiveChip = 'Semua';
+    userHistoryStartDate = null;
+    userHistoryEndDate = null;
   }
 
   static void clear() {

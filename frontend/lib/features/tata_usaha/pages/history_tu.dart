@@ -38,9 +38,11 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
     _fetchHistory();
   }
 
-  String? get _dateFrom => Session.historyStartDate?.toIso8601String().substring(0, 10);
+  String? get _dateFrom =>
+      Session.historyStartDate?.toIso8601String().substring(0, 10);
 
-  String? get _dateTo => Session.historyEndDate?.toIso8601String().substring(0, 10);
+  String? get _dateTo =>
+      Session.historyEndDate?.toIso8601String().substring(0, 10);
 
   Future<void> _fetchHistory() async {
     if (!mounted) return;
@@ -50,7 +52,6 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
     });
 
     try {
-      // Pegawai (TU) fetch kedua endpoint — sama seperti admin/kepsek di web
       final results = await Future.wait([
         _repoMasuk.getHistory(dateFrom: _dateFrom, dateTo: _dateTo),
         _repoKeluar.getHistory(tanggalAwal: _dateFrom, tanggalAkhir: _dateTo),
@@ -58,6 +59,18 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
 
       final masukList = results[0] as List<SuratMasuk>;
       final keluarList = results[1] as List<SuratKeluar>;
+
+      // ── DEBUG ──────────────────────────────────────────────────────────
+      debugPrint('=== HISTORY DEBUG ===');
+      debugPrint('MASUK COUNT : ${masukList.length}');
+      debugPrint('KELUAR COUNT: ${keluarList.length}');
+      for (final s in keluarList) {
+        debugPrint(
+          'KELUAR → id:${s.id} | status:"${s.status}" | noSurat:"${s.noSurat}"',
+        );
+      }
+      debugPrint('=====================');
+      // ── END DEBUG ──────────────────────────────────────────────────────
 
       final masuk = masukList
           .map(
@@ -101,8 +114,13 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
           )
           .toList();
 
+      // ── DEBUG filter ───────────────────────────────────────────────────
+      debugPrint('historyStatusFilter: "${Session.historyStatusFilter}"');
+      debugPrint('masuk mapped : ${masuk.length}');
+      debugPrint('keluar mapped: ${keluar.length}');
+      // ── END DEBUG ──────────────────────────────────────────────────────
+
       final result = [...masuk, ...keluar];
-      // Sort terbaru dulu berdasarkan tanggal ISO string
       result.sort((a, b) {
         final dateA =
             DateTime.tryParse(a['tanggal'] as String) ?? DateTime(1970);
@@ -117,25 +135,26 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
         _isLoading = false;
       });
     } on DioException catch (e) {
+      debugPrint(
+        'DioException: ${e.message} | status: ${e.response?.statusCode}',
+      );
       if (!mounted) return;
       setState(() {
         _error = parseError(e);
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('ERROR _fetchHistory: $e');
       if (!mounted) return;
       setState(() {
-        
         _error = 'Terjadi kesalahan. Coba lagi.';
         _isLoading = false;
       });
     }
   }
 
-  // ── Filter client-side (search + status + tanggal) ──────────────────────
   List<Map<String, dynamic>> get _filteredSurat {
     return _historySurat.where((s) {
-      // Search
       final query = Session.historySearchQuery.toLowerCase();
       final matchSearch =
           query.isEmpty ||
@@ -145,12 +164,10 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
           s['jenisSurat'].toString().toLowerCase().contains(query) ||
           s['tanggal'].toString().contains(query);
 
-      // Status filter
       final matchStatus =
           Session.historyStatusFilter == 'semua' ||
           s['status'].toString().toLowerCase() == Session.historyStatusFilter;
 
-      // Tanggal filter — sudah dikirim ke backend, ini hanya fallback UI
       bool matchDate = true;
       if (Session.historyStartDate != null && Session.historyEndDate != null) {
         final suratDate = DateTime.tryParse(s['tanggal'] as String);
@@ -190,7 +207,6 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
       Session.historyActiveChip = result.activeChip;
       Session.historyDateFilter = result.dateFilterLabel;
     });
-    // Re-fetch dengan tanggal baru
     _fetchHistory();
   }
 
@@ -213,12 +229,12 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
                 catatan: surat['catatan'] ?? '-',
                 isReadOnly: true,
                 lampiranUrls: List<String>.from(surat['lampiran'] ?? []),
+                showKonfirmasi: false,
               ),
       ),
     );
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width;
@@ -251,7 +267,6 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
                         setState(() => Session.historySearchQuery = value),
                   ),
                   SizedBox(height: h * 0.014),
-                  // Filter chip: Semua / Disetujui / Ditolak
                   Wrap(
                     spacing: w * 0.02,
                     runSpacing: h * 0.01,

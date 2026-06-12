@@ -99,12 +99,12 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
 
   static const List<String> _chips = ['Hari ini', 'Bulan ini', 'Pilih tanggal'];
 
-  final DateTime _firstDate = DateTime(DateTime.now().year - 5, 1, 1);
-  final DateTime _lastDate = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day,
-  );
+  DateTime get _firstDate => DateTime(DateTime.now().year - 5, 1, 1);
+  // ✅ SESUDAH
+  DateTime get _lastDate {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
 
   @override
   void initState() {

@@ -13,9 +13,7 @@ class NotificationRepository {
 
       return list.map((item) {
         final jenis = item['jenis'] as String? ?? '';
-        final template = getNotifTemplate(
-          jenis,
-        ); // ← langsung String, tidak perlu notifTypeMap
+        final template = getNotifTemplate(jenis);
         return {
           'id': item['id'] ?? 0,
           'title': template.title,
@@ -25,11 +23,15 @@ class NotificationRepository {
           'createdAt':
               DateTime.tryParse(item['created_at'] ?? '') ?? DateTime.now(),
           'color': template.color,
-          'icon': template
-              .icon, // ← sekarang bisa dipakai, karena NotifTemplate ini punya field icon
+          'icon': template.icon,
         };
       }).toList();
     } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      if (statusCode == 500) {
+        // Backend error — kembalikan list kosong daripada crash
+        return [];
+      }
       throw Exception('Gagal memuat notifikasi: ${e.message}');
     }
   }

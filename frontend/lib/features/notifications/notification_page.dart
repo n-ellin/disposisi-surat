@@ -46,6 +46,42 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
+  // FIX #3: markAsRead per item — dipanggil saat user tap satu notifikasi.
+  // Sebelumnya tidak ada onTap sama sekali di card, jadi status isRead
+  // tidak pernah berubah kecuali lewat markAllRead yang dipanggil otomatis.
+  Future<void> _markOneAsRead(Map<String, dynamic> notif) async {
+    final id = notif['id'] as int?;
+    final isRead = notif['isRead'] as bool? ?? false;
+    if (id == null || isRead) return; // sudah dibaca, tidak perlu request
+
+    try {
+      await _repo.markAsRead(id);
+      if (!mounted) return;
+      setState(() {
+        // Update state lokal langsung agar UI responsif tanpa perlu refetch
+        final idx = _notifications.indexWhere((n) => n['id'] == id);
+        if (idx != -1) _notifications[idx]['isRead'] = true;
+      });
+    } catch (e) {
+      debugPrint('[Notif] Gagal markAsRead id=$id: $e');
+    }
+  }
+
+  // Tandai semua dibaca — hanya dipanggil saat user tap tombol "Tandai semua"
+  Future<void> _markAllAsRead() async {
+    try {
+      await _repo.markAllRead();
+      if (!mounted) return;
+      setState(() {
+        for (final n in _notifications) {
+          n['isRead'] = true;
+        }
+      });
+    } catch (e) {
+      debugPrint('[Notif] Gagal markAllRead: $e');
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
     return _notifications.where((n) {
       final isRead = n['isRead'] as bool? ?? false;
@@ -59,6 +95,8 @@ class _NotificationPageState extends State<NotificationPage> {
       }
     }).toList();
   }
+
+  bool get _hasUnread => _notifications.any((n) => n['isRead'] == false);
 
   Map<String, List<Map<String, dynamic>>> _groupNotifications(
     List<Map<String, dynamic>> list,
@@ -189,6 +227,8 @@ class _NotificationPageState extends State<NotificationPage> {
                   icon:
                       notif['icon'] as IconData? ??
                       Icons.notifications_outlined,
+                  // FIX #3: onTap sekarang ada — markAsRead dipanggil per item
+                  onTap: () => _markOneAsRead(notif),
                 ),
               ),
               SizedBox(height: h * 0.01),
@@ -276,17 +316,34 @@ class _NotificationPageState extends State<NotificationPage> {
             ),
           ),
         ),
+        // Tombol "Tandai semua dibaca" — hanya muncul jika ada notif belum dibaca
+        if (_hasUnread)
+          GestureDetector(
+            onTap: _markAllAsRead,
+            child: Text(
+              'Tandai semua',
+              style: TextStyle(
+                fontSize: rf(12),
+                color: AppColors.bluePrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
+// ============================================================
+// NOTIFICATION CARD
+// ============================================================
 class _NotificationCard extends StatelessWidget {
   final String title;
   final String desc;
   final bool isRead;
   final Color accentColor;
   final IconData icon;
+  final VoidCallback onTap; // FIX #3: parameter baru
 
   const _NotificationCard({
     required this.title,
@@ -294,6 +351,7 @@ class _NotificationCard extends StatelessWidget {
     required this.isRead,
     required this.accentColor,
     required this.icon,
+    required this.onTap,
   });
 
   @override
@@ -304,92 +362,97 @@ class _NotificationCard extends StatelessWidget {
     double rf(double s) => (w * (s / 375)).clamp(s * 0.9, s * 1.2);
     final radius = rf(14);
 
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.only(bottom: h * 0.012),
-      decoration: BoxDecoration(
-        color: isRead ? Colors.white : accentColor.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: Colors.black.withOpacity(0.07), width: 0.5),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (!isRead) Container(width: rf(3.5), color: accentColor),
-              Padding(
-                padding: EdgeInsets.only(
-                  left: rf(12),
-                  top: rf(14),
-                  bottom: rf(14),
-                ),
-                child: Container(
-                  width: rf(36),
-                  height: rf(36),
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.12),
-                    shape: BoxShape.circle,
+    // FIX #3: dibungkus InkWell agar bisa di-tap untuk markAsRead
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(radius),
+      child: Container(
+        width: double.infinity,
+        margin: EdgeInsets.only(bottom: h * 0.012),
+        decoration: BoxDecoration(
+          color: isRead ? Colors.white : accentColor.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: Colors.black.withOpacity(0.07), width: 0.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!isRead) Container(width: rf(3.5), color: accentColor),
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: rf(12),
+                    top: rf(14),
+                    bottom: rf(14),
                   ),
-                  child: Icon(icon, color: accentColor, size: rf(18)),
+                  child: Container(
+                    width: rf(36),
+                    height: rf(36),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: accentColor, size: rf(18)),
+                  ),
                 ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.all(rf(12)),
-                  child: Stack(
-                    children: [
-                      if (!isRead)
-                        Positioned(
-                          right: 0,
-                          top: 2,
-                          child: Container(
-                            width: rf(8),
-                            height: rf(8),
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              shape: BoxShape.circle,
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(rf(12)),
+                    child: Stack(
+                      children: [
+                        if (!isRead)
+                          Positioned(
+                            right: 0,
+                            top: 2,
+                            child: Container(
+                              width: rf(8),
+                              height: rf(8),
+                              decoration: BoxDecoration(
+                                color: accentColor,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
-                        ),
-                      Padding(
-                        padding: EdgeInsets.only(right: w * 0.04),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: rf(14),
-                                fontWeight: isRead
-                                    ? FontWeight.w400
-                                    : FontWeight.w600,
-                                color: isRead
-                                    ? Colors.black45
-                                    : const Color(0xFF212121),
-                                height: 1.3,
+                        Padding(
+                          padding: EdgeInsets.only(right: w * 0.04),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: rf(14),
+                                  fontWeight: isRead
+                                      ? FontWeight.w400
+                                      : FontWeight.w600,
+                                  color: isRead
+                                      ? Colors.black45
+                                      : const Color(0xFF212121),
+                                  height: 1.3,
+                                ),
                               ),
-                            ),
-                            SizedBox(height: h * 0.006),
-                            Text(
-                              desc,
-                              style: TextStyle(
-                                fontSize: rf(12.5),
-                                height: 1.5,
-                                color: isRead
-                                    ? Colors.black38
-                                    : const Color(0xFF757575),
+                              SizedBox(height: h * 0.006),
+                              Text(
+                                desc,
+                                style: TextStyle(
+                                  fontSize: rf(12.5),
+                                  height: 1.5,
+                                  color: isRead
+                                      ? Colors.black38
+                                      : const Color(0xFF757575),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

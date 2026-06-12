@@ -38,8 +38,18 @@ class SuratMasukRepository {
 
   /// GET /api/users/waka
   Future<List<Map<String, dynamic>>> getWakaList() async {
-    final res = await _dio.get('/api/users/waka');
-    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+    final res = await _dio.get('/api/users', queryParameters: {'role': 'waka'});
+    final List raw = res.data['data'] as List? ?? [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(
+          (u) => {
+            'id': u['id_user'],
+            'nama': u['nama'],
+            'nama_jabatan': u['nama_jabatan'] ?? '',
+          },
+        )
+        .toList();
   }
 
   /// GET /api/surat-masuk/history

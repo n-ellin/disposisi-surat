@@ -6,7 +6,6 @@ import 'core/constants/session.dart';
 // ── AUTH ─────────────────────────────────────────────────────────────────────
 import 'shared/auth/pages/splash_screen.dart';
 import 'shared/auth/pages/login_page.dart';
-import 'shared/auth/change_password_page.dart';
 
 // ── SHARED ───────────────────────────────────────────────────────────────────
 import 'features/profile/profile_page.dart';
@@ -87,7 +86,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/splash_screen': (context) => const SplashScreen(),
         '/signin': (context) => const Login(),
-        '/gantipw': (context) => const GantiKataSandiPage(),
+  
 
         '/profile': (context) {
           return ProfilePage(

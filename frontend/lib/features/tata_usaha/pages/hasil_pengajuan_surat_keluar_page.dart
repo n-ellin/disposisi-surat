@@ -6,15 +6,15 @@ import 'package:ta_mobile_disposisi_surat/core/repositories/surat_keluar_reposit
 
 import '../../../core/network/api_client.dart';
 
-class InputSuratKeluar extends StatefulWidget {
+class Outputsuratkeluar extends StatefulWidget {
   final Map<String, dynamic> surat;
-  const InputSuratKeluar({super.key, required this.surat});
+  const Outputsuratkeluar({super.key, required this.surat});
 
   @override
-  State<InputSuratKeluar> createState() => _InputSuratKeluarState();
+  State<Outputsuratkeluar> createState() => _OutputsuratkeluarState();
 }
 
-class _InputSuratKeluarState extends State<InputSuratKeluar> {
+class _OutputsuratkeluarState extends State<Outputsuratkeluar> {
   final _suratKeluarRepo = SuratKeluarRepository();
   bool _isSubmitting = false;
 
@@ -606,6 +606,7 @@ class OutputSuratkeluar extends StatelessWidget {
   final bool isReadOnly;
   final List<String> lampiranUrls;
   final VoidCallback? onLihatSurat;
+  final bool showKonfirmasi; // ← TAMBAHAN: true jika dari Home, false jika dari History
 
   const OutputSuratkeluar({
     super.key,
@@ -613,6 +614,7 @@ class OutputSuratkeluar extends StatelessWidget {
     this.isReadOnly = true,
     this.lampiranUrls = const [],
     this.onLihatSurat,
+    this.showKonfirmasi = true, // ← default true (dari Home)
   });
 
   @override
@@ -626,6 +628,7 @@ class OutputSuratkeluar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── App Bar ───────────────────────────────────────────
             Padding(
               padding: EdgeInsets.fromLTRB(w * 0.05, h * 0.025, w * 0.05, 0),
               child: Row(
@@ -660,7 +663,7 @@ class OutputSuratkeluar extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Catatan ───────────────────────────────────────────
+                    // ── Card Catatan ───────────────────────────────────
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -713,80 +716,79 @@ class OutputSuratkeluar extends StatelessWidget {
                       ),
                     ),
 
-                    // ── Tombol ───────────────────────────────────────────
+                    // ── Button Lihat Surat (rata kanan, sejajar sisi kanan card) ──
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 130,
-                          height: 42,
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                  color: AppColors.orangePrimary),
-                              foregroundColor: AppColors.orangePrimary,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SizedBox(
+                        width: 130,
+                        height: 42,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.orangePrimary),
+                            foregroundColor: AppColors.orangePrimary,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            onPressed: () {
-                              if (lampiranUrls.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content:
-                                          Text("Tidak ada lampiran")),
-                                );
-                                return;
-                              }
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => FullScreenImageViewer(
-                                    imageUrls: lampiranUrls,
-                                    initialIndex: 0,
-                                  ),
-                                ),
+                          ),
+                          onPressed: () {
+                            if (lampiranUrls.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Tidak ada lampiran")),
                               );
-                            },
-                            icon: const Icon(Icons.remove_red_eye, size: 17),
-                            label: const Text(
-                              "Lihat Surat",
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: SizedBox(
-                            height: 42,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.orangePrimary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                              return;
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => FullScreenImageViewer(
+                                  imageUrls: lampiranUrls,
+                                  initialIndex: 0,
                                 ),
                               ),
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                "Konfirmasi",
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700),
-                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.remove_red_eye, size: 17),
+                          label: const Text(
+                            "Lihat Surat",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
+
+                    // ── Button Konfirmasi (hanya tampil jika dari Home) ──
+                    if (showKonfirmasi) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 42,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.orangePrimary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            "Konfirmasi",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 30),
                   ],
                 ),

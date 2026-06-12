@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:dio/dio.dart';
 
+import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
@@ -55,8 +56,8 @@ class _HomeState extends State<Home> {
   final _suratMasukRepo = SuratMasukRepository();
   final _suratKeluarRepo = SuratKeluarRepository();
   final _notifRepo = NotificationRepository();
-  final _dashboardRepo = DashboardRepository(); // ← TAMBAH
-  final _userRepo = UserRepository(); // ← TAMBAH
+  final _dashboardRepo = DashboardRepository();
+  final _userRepo = UserRepository();
 
   // =========================
   // STATE
@@ -64,7 +65,7 @@ class _HomeState extends State<Home> {
   List<SuratMasuk> _suratMasukList = [];
   List<SuratKeluar> _suratKeluarList = [];
   List<Map<String, dynamic>> notifications = [];
-  Map<String, dynamic> _dashboardStats = {}; // ← TAMBAH
+  Map<String, dynamic> _dashboardStats = {};
   bool _isLoading = true;
   String? _error;
 
@@ -144,22 +145,35 @@ class _HomeState extends State<Home> {
   // =========================
   // NOTIFICATION
   // =========================
+
+  // FIX #1: catch tidak lagi menelan error diam-diam.
+  // Sebelumnya: catch (_) {} — error dibuang tanpa jejak,
+  // sehingga jika request gagal (token, jaringan, dll) tidak ada indikasi apapun.
   Future<void> _fetchNotifications() async {
     try {
       final result = await _notifRepo.getList();
       if (!mounted) return;
       setState(() => notifications = result);
-    } catch (_) {}
+    } catch (e) {
+      // Error dicatat di log agar mudah di-debug, tapi tidak mengganggu UI.
+      // Badge notif tetap menampilkan data terakhir yang berhasil dimuat.
+      debugPrint('[Notif] Gagal fetch notifikasi: $e');
+    }
   }
 
   int get notifCount => notifications.where((e) => e['isRead'] == false).length;
 
+  // FIX #2: markAllRead dihapus dari sini.
+  // Sebelumnya markAllRead() dipanggil otomatis setelah keluar dari halaman notif,
+  // sehingga semua notif langsung berubah jadi sudah-dibaca meski user belum membacanya.
+  // Sekarang markAsRead hanya dipanggil per-item di NotificationPage saat user tap notif.
   Future<void> openNotification() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => NotificationPage(role: widget.role)),
     );
-    await _notifRepo.markAllRead();
+    // Refresh badge setelah kembali dari halaman notif
+    // agar count di icon bell terupdate sesuai yang sudah ditap user.
     await _fetchNotifications();
   }
 
@@ -174,18 +188,17 @@ class _HomeState extends State<Home> {
     });
 
     try {
-      // Fetch surat + dashboard stats secara paralel
       final results = await Future.wait([
         _suratMasukRepo.getList(),
         _suratKeluarRepo.getList(),
-        _dashboardRepo.getStats(), // ← TAMBAH
+        _dashboardRepo.getStats(),
       ]);
 
       if (!mounted) return;
       setState(() {
         _suratMasukList = List<SuratMasuk>.from(results[0] as List);
         _suratKeluarList = List<SuratKeluar>.from(results[1] as List);
-        _dashboardStats = results[2] as Map<String, dynamic>; // ← TAMBAH
+        _dashboardStats = results[2] as Map<String, dynamic>;
       });
     } on DioException catch (e) {
       if (!mounted) return;
@@ -314,28 +327,17 @@ class _HomeState extends State<Home> {
     return sorted.take(5).toList();
   }
 
-  // ── STAT GETTERS — pakai API stats, fallback ke hitung lokal ──────────────
-  //
-  // Kenapa fallback? Supaya UI tetap menampilkan angka yang benar
-  // meskipun backend mengembalikan field dengan nama berbeda atau kosong.
-  // Setelah field API dikonfirmasi stabil, fallback bisa dihapus.
-
   int get jumlahSuratMasuk {
-    // API field untuk semua role: 'total_surat_masuk'
     final fromApi = _dashboardStats['total_surat_masuk'];
     if (fromApi != null) return (fromApi as num).toInt();
-    // Fallback: hitung dari list
     return _suratMasukList.length;
   }
 
   int get jumlahSuratKeluar {
-    // API field untuk semua role: 'total_surat_keluar'
     final fromApi = _dashboardStats['total_surat_keluar'];
     if (fromApi != null) return (fromApi as num).toInt();
-    // Fallback: hitung dari list
     return _suratKeluarList.length;
   }
-  // ─────────────────────────────────────────────────────────────────────────
 
   // =========================
   // OPEN DETAIL PEGAWAI/TU
@@ -348,14 +350,13 @@ class _HomeState extends State<Home> {
       if (isMasuk) {
         final detail = await _suratMasukRepo.getDetail((raw as SuratMasuk).id);
 
-        // ── GANTI raw Dio call → UserRepository ──────────────────────────
         List<Map<String, dynamic>> wakaListData = [];
         try {
           wakaListData = await _userRepo.getList(role: 'waka');
+          debugPrint('WAKA LIST: $wakaListData');
         } catch (e) {
           debugPrint('Error fetch waka: $e');
         }
-        // ─────────────────────────────────────────────────────────────────
 
         if (!mounted) return;
 
@@ -438,7 +439,7 @@ class _HomeState extends State<Home> {
     final statusCheck = (surat['status'] ?? '').toString().toLowerCase();
     if ((statusCheck == 'diproses' || statusCheck == 'menunggu') &&
         widget.role != Role.kepsek) {
-      _showProcessDialog();
+      showProcessDialog(context);
       return;
     }
 

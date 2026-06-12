@@ -178,23 +178,30 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
                 right: w * 0.05,
                 bottom: h * 0.015,
               ),
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      color: AppColors.bluePrimary,
-                      size: w * 0.055,
-                    ),
-                  ),
-                  SizedBox(width: w * 0.02),
+                  // Teks tengah
                   Text(
                     'Riwayat',
                     style: TextStyle(
                       fontSize: w * 0.048,
                       fontWeight: FontWeight.bold,
                       color: AppColors.bluePrimary,
+                    ),
+                  ),
+                  // Back button kiri
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      onTap: () {
+                        if (Navigator.canPop(context)) Navigator.pop(context);
+                      },
+                      child: Icon(
+                        Icons.arrow_back_ios_new,
+                        color: AppColors.bluePrimary,
+                        size: w * 0.055,
+                      ),
                     ),
                   ),
                 ],

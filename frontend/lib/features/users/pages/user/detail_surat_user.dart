@@ -36,8 +36,14 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
       'note',
     ];
     for (final key in keys) {
-      final val = widget.surat[key]?.toString().trim() ?? '';
-      if (val.isNotEmpty) return val;
+      var val = widget.surat[key]?.toString().trim() ?? '';
+      if (val.isNotEmpty) {
+        // Hapus bagian "[Diteruskan kepada: ...]" yang disisipkan BE
+        val = val
+            .replaceAll(RegExp(r'\[Diteruskan kepada:[^\]]*\]'), '')
+            .trim();
+        if (val.isNotEmpty) return val;
+      }
     }
     return '';
   }
@@ -234,7 +240,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // =========================================================
   Widget _buildCatatan(BuildContext context, double w, double h) {
     final catatan = _catatanWaka.isEmpty ? '-' : _catatanWaka;
-    final namaWaka = _namaWaka;
 
     return Container(
       width: double.infinity,
@@ -266,19 +271,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
               ),
             ],
           ),
-
-          // Nama waka (kalau ada)
-          if (namaWaka.isNotEmpty) ...[
-            SizedBox(height: h * 0.008),
-            Text(
-              namaWaka,
-              style: TextStyle(
-                fontSize: rf(context, 12),
-                fontWeight: FontWeight.w600,
-                color: AppColors.bluePrimary.withOpacity(0.7),
-              ),
-            ),
-          ],
 
           SizedBox(height: h * 0.012),
 

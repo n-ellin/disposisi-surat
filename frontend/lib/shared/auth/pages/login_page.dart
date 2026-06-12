@@ -8,7 +8,7 @@ import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/repositories/auth_repository.dart';
 import 'package:ta_mobile_disposisi_surat/features/users/pages/menu_user_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/home/home.dart';
-import 'package:ta_mobile_disposisi_surat/shared/auth/reset_kata_sandi/input_email_page.dart';
+import 'package:ta_mobile_disposisi_surat/shared/auth/ganti_kata_sandi/input_email_page.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -252,7 +252,7 @@ class _LoginState extends State<Login> {
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const ForgotPasswordPage(),
+                                  builder: (_) => const GantiKataSandiPage(),
                                 ),
                               ),
                               style: TextButton.styleFrom(

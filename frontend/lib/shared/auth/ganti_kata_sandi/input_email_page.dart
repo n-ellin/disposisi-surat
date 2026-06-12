@@ -1,17 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
-import 'package:ta_mobile_disposisi_surat/shared/auth/reset_kata_sandi/otp_verification_page.dart';
+import 'package:ta_mobile_disposisi_surat/shared/auth/ganti_kata_sandi/otp_verification_page.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 
-class ForgotPasswordPage extends StatefulWidget {
-  const ForgotPasswordPage({super.key});
+class GantiKataSandiPage extends StatefulWidget {
+  const GantiKataSandiPage({super.key});
 
   @override
-  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+  State<GantiKataSandiPage> createState() => _GantiKataSandiPageState();
 }
 
-class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+class _GantiKataSandiPageState extends State<GantiKataSandiPage> {
   final _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -158,7 +158,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                   SizedBox(height: spacingL),
                   Text(
-                    'Lupa Password?',
+                    'Lupa Kata Sandi?',
                     style: TextStyle(
                       fontSize: titleSize,
                       fontWeight: FontWeight.w700,
@@ -167,7 +167,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                   SizedBox(height: spacingS),
                   Text(
-                    'Masukkan surel kamu, kami akan kirimkan\nkode OTP untuk reset password.',
+                    'Masukkan surel yang terdaftar, kami akan kirimkan\nkode OTP untuk ganti kata sandi.',
                     style: TextStyle(
                       fontSize: bodySize,
                       color: Colors.black45,

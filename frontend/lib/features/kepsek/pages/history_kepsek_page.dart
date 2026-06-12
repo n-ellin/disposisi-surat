@@ -46,15 +46,19 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
 
     try {
       // Kirim date filter ke BE supaya tidak fetch semua data
-      final dateFrom =
-          Session.kepsekStartDate?.toIso8601String().substring(0, 10);
-      final dateTo =
-          Session.kepsekEndDate?.toIso8601String().substring(0, 10);
+      final dateFrom = Session.kepsekStartDate?.toIso8601String().substring(
+        0,
+        10,
+      );
+      final dateTo = Session.kepsekEndDate?.toIso8601String().substring(0, 10);
 
       // Fetch paralel — lebih cepat daripada sequential
       final results = await Future.wait([
         _suratMasukRepo.getHistory(dateFrom: dateFrom, dateTo: dateTo),
-        _suratKeluarRepo.getHistory(tanggalAwal: dateFrom, tanggalAkhir: dateTo),
+        _suratKeluarRepo.getHistory(
+          tanggalAwal: dateFrom,
+          tanggalAkhir: dateTo,
+        ),
       ]);
 
       final masukList = results[0] as List<SuratMasuk>;
@@ -62,37 +66,45 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
 
       // Tidak perlu filter .where(status) di sini — BE /history sudah
       // mengembalikan hanya yang sudah diputuskan (disetujui/ditolak)
-      final masuk = masukList.map((s) => {
-        'id': s.id,
-        'jenisSurat': 'Surat Masuk',
-        'tanggal': s.createdAt.toIso8601String().substring(0, 10),
-        'status': s.status,
-        'catatan': s.catatanVerifikasi ?? '',
-        'lampiran': s.lampiranUrls.isNotEmpty
-            ? s.lampiranUrls
-            : <String>[s.previewUrl],
-        'data': {
-          'Dari': s.asalSurat,
-          'Perihal': s.perihal,
-          'No. Surat': s.noSurat,
-        },
-      }).toList();
+      final masuk = masukList
+          .map(
+            (s) => {
+              'id': s.id,
+              'jenisSurat': 'Surat Masuk',
+              'tanggal': s.createdAt.toIso8601String().substring(0, 10),
+              'status': s.status,
+              'catatan': s.catatanVerifikasi ?? '',
+              'lampiran': s.lampiranUrls.isNotEmpty
+                  ? s.lampiranUrls
+                  : <String>[s.previewUrl],
+              'data': {
+                'Dari': s.asalSurat,
+                'Perihal': s.perihal,
+                'No. Surat': s.noSurat,
+              },
+            },
+          )
+          .toList();
 
-      final keluar = keluarList.map((s) => {
-        'id': s.id,
-        'jenisSurat': 'Surat Keluar',
-        'tanggal': s.createdAt.toIso8601String().substring(0, 10),
-        'status': s.status,
-        'catatan': s.catatanVerifikasi ?? '',
-        'lampiran': (s.lampiranUrls != null && s.lampiranUrls!.isNotEmpty)
-            ? s.lampiranUrls!
-            : <String>[s.previewUrl],
-        'data': {
-          'Dari': s.tujuan,
-          'Perihal': s.perihal,
-          'No. Surat': s.noSurat,
-        },
-      }).toList();
+      final keluar = keluarList
+          .map(
+            (s) => {
+              'id': s.id,
+              'jenisSurat': 'Surat Keluar',
+              'tanggal': s.createdAt.toIso8601String().substring(0, 10),
+              'status': s.status,
+              'catatan': s.catatanVerifikasi ?? '',
+              'lampiran': (s.lampiranUrls != null && s.lampiranUrls!.isNotEmpty)
+                  ? s.lampiranUrls!
+                  : <String>[s.previewUrl],
+              'data': {
+                'Dari': s.tujuan,
+                'Perihal': s.perihal,
+                'No. Surat': s.noSurat,
+              },
+            },
+          )
+          .toList();
 
       final combined = [...masuk, ...keluar]
         ..sort((a, b) {
@@ -174,13 +186,17 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
       initialChip: Session.kepsekActiveChip,
     );
     if (result == null) return;
+
+    debugPrint('START: ${result.startDate}'); // ← TAMBAH INI
+    debugPrint('END: ${result.endDate}'); // ← TAMBAH INI
+
     setState(() {
       Session.kepsekStartDate = result.startDate;
       Session.kepsekEndDate = result.endDate;
       Session.kepsekActiveChip = result.activeChip;
       Session.kepsekDateFilter = result.dateFilterLabel;
     });
-    _loadHistory(); // re-fetch dengan date baru ke BE
+    _loadHistory();
   }
 
   @override
@@ -189,8 +205,7 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
     final h = MediaQuery.of(context).size.height;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    double rf(double size) =>
-        (w * (size / 375)).clamp(size * 0.9, size * 1.15);
+    double rf(double size) => (w * (size / 375)).clamp(size * 0.9, size * 1.15);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -383,8 +398,7 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
 
   Widget _filterChip(String value, String label) {
     final w = MediaQuery.of(context).size.width;
-    double rf(double size) =>
-        (w * (size / 375)).clamp(size * 0.9, size * 1.1);
+    double rf(double size) => (w * (size / 375)).clamp(size * 0.9, size * 1.1);
 
     final isActive = Session.kepsekJenisFilter == value;
     const activeColor = AppColors.bluePrimary;

@@ -207,7 +207,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               ),
               SizedBox(height: sh * 0.022),
               Text(
-                'Password Baru',
+                'Kata Sandi Baru',
                 style: TextStyle(
                   fontSize: (sw * 0.075).clamp(28.0, 34.0),
                   fontWeight: FontWeight.w700,
@@ -216,7 +216,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               ),
               SizedBox(height: sh * 0.008),
               Text(
-                'Buat password baru yang kuat untuk akunmu.',
+                'Buat kata sandi baru yang kuat untuk akunmu.',
                 style: TextStyle(
                   fontSize: (sw * 0.042).clamp(15.0, 18.0),
                   color: Colors.black45,
@@ -227,7 +227,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
               // Password baru
               Text(
-                'Password Baru',
+                'Kata Sandi Baru',
                 style: TextStyle(
                   fontSize: (sw * 0.038).clamp(14.0, 16.0),
                   fontWeight: FontWeight.w600,
@@ -237,7 +237,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               SizedBox(height: sh * 0.008),
               _buildField(
                 controller: _newPassC,
-                hint: 'Masukkan password baru',
+                hint: 'Masukkan kata sandi baru',
                 isVisible: _showNew,
                 onChanged: _onNewChanged,
                 onToggle: () => setState(() => _showNew = !_showNew),
@@ -262,7 +262,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
 
               // Konfirmasi password
               Text(
-                'Konfirmasi Password',
+                'Konfirmasi Kata Sandi',
                 style: TextStyle(
                   fontSize: (sw * 0.038).clamp(14.0, 16.0),
                   fontWeight: FontWeight.w600,
@@ -272,7 +272,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
               SizedBox(height: sh * 0.008),
               _buildField(
                 controller: _confirmPassC,
-                hint: 'Ulangi password baru',
+                hint: 'Ulangi kata sandi baru',
                 isVisible: _showConfirm,
                 onChanged: _onConfirmChanged,
                 onToggle: () => setState(() => _showConfirm = !_showConfirm),
@@ -282,7 +282,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                 Padding(
                   padding: EdgeInsets.only(top: sh * 0.01),
                   child: _buildValidationRow(
-                    _passwordMatch ? 'Password cocok' : 'Password tidak cocok',
+                    _passwordMatch ? 'Kata sandi cocok' : 'Kata sandi tidak cocok',
                     _passwordMatch,
                   ),
                 ),
@@ -335,7 +335,7 @@ class _NewPasswordPageState extends State<NewPasswordPage> {
                           ),
                         )
                       : Text(
-                          'Simpan Password',
+                          'Simpan Kata Sandi',
                           style: TextStyle(
                             fontSize: (sw * 0.045).clamp(16.0, 18.0),
                             fontWeight: FontWeight.w600,

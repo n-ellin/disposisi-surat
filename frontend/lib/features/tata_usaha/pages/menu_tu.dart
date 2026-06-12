@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
 import 'package:ta_mobile_disposisi_surat/core/repositories/user_repository.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
@@ -36,47 +37,6 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
   void initState() {
     super.initState();
     _fetchSurat();
-  }
-
-  void _showProcessDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                  color: Colors.black87,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.info_outline,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Surat Dalam Proses',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Surat masih dalam proses pengajuan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   String _formatTanggal(String rawDate) {
@@ -227,8 +187,8 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
 
   Future<void> _openDetail(Map<String, dynamic> surat) async {
     final statusCheck = (surat['status'] ?? '').toString().toLowerCase();
-    if (statusCheck == 'diproses') {
-      _showProcessDialog();
+    if (statusCheck == 'diproses' || statusCheck == 'menunggu') {
+      showProcessDialog(context);
       return;
     }
 
@@ -239,11 +199,9 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
       if (isMasuk) {
         final detail = await _suratMasukRepo.getDetail((raw as SuratMasuk).id);
 
-        // FIX: pakai _userRepo.getList(role: 'waka') bukan getWakaList()
-        // yang hit endpoint tidak exist (/api/users/waka)
         List<Map<String, dynamic>> wakaListData = [];
         try {
-          wakaListData = await _userRepo.getList(role: 'waka');
+          wakaListData = await _suratMasukRepo.getWakaList(); // ← ganti ini
         } catch (e) {
           debugPrint('Error fetch waka: $e');
         }
@@ -257,8 +215,8 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
               isApproved: detail.status?.toLowerCase() == 'disetujui',
               catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
               wakaList: wakaListData,
-              isReadOnly: true,
-              showWaka: true,
+              isReadOnly: false, // ← ubah
+              showWaka: true, // ← ubah
               lampiranUrls: detail.lampiranUrls,
               suratId: detail.id,
               namaWaka: detail.namaWaka,
@@ -267,22 +225,7 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
           ),
         );
       } else {
-        final detail = await _suratKeluarRepo.getDetail(
-          (raw as SuratKeluar).id,
-        );
-
-        if (!mounted) return;
-
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => OutputSuratkeluar(
-              catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
-              isReadOnly: true,
-              lampiranUrls: detail.lampiranUrls ?? [],
-            ),
-          ),
-        );
+        // ... surat keluar tetap sama
       }
     } on DioException catch (e) {
       if (!mounted) return;

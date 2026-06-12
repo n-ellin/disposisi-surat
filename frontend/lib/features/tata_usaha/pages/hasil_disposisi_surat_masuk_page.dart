@@ -76,7 +76,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
   Future<void> _loadData() async {
     try {
       final res = await SuratMasukRepository().getDetail(widget.suratId);
-
       setState(() {
         _surat = res;
         _loading = false;
@@ -87,7 +86,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
   }
 
   void _bukaLampiran() {
-    // Prioritaskan lampiranUrls dari widget, fallback ke _surat
     final urls = widget.lampiranUrls.isNotEmpty
         ? widget.lampiranUrls
         : (_surat?.lampiranUrls ?? []);
@@ -179,46 +177,22 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
 
                     SizedBox(height: h * 0.025),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 130,
-                          height: 42,
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.bluePrimary,
-                              ),
-                              foregroundColor: AppColors.bluePrimary,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: _bukaLampiran,
-                            icon: const Icon(Icons.remove_red_eye, size: 18),
-                            label: const Text(
-                              "Lihat Surat",
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (!widget.isReadOnly) ...[
-                          const SizedBox(width: 10),
+                    // TOMBOL — rata kanan sejajar card
+                    // SESUDAH
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: w * 0.04),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
                           SizedBox(
-                            width: 110,
+                            width: 130,
                             height: 42,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.bluePrimary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: AppColors.bluePrimary,
+                                ),
+                                foregroundColor: AppColors.bluePrimary,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 10,
                                 ),
@@ -226,22 +200,51 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                               ),
-                              onPressed: _onSubmit,
-                              icon: Icon(
-                                widget.isApproved ? Icons.send : Icons.check,
-                                size: 18,
-                              ),
-                              label: Text(
-                                widget.showWaka ? "Teruskan" : "Konfirmasi",
-                                style: const TextStyle(
+                              onPressed: _bukaLampiran,
+                              icon: const Icon(Icons.remove_red_eye, size: 18),
+                              label: const Text(
+                                "Lihat Surat",
+                                style: TextStyle(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
+                          if (!widget.isReadOnly) ...[
+                            const SizedBox(width: 10),
+                            SizedBox(
+                              width: 110,
+                              height: 42,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.bluePrimary,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                                onPressed: _onSubmit,
+                                icon: Icon(
+                                  widget.isApproved ? Icons.send : Icons.check,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  widget.showWaka ? "Teruskan" : "Konfirmasi",
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
 
                     SizedBox(height: h * 0.03),
@@ -255,7 +258,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     );
   }
 
-  // Waka read-only
   Widget _wakaReadOnly(double w, double h) {
     final nama = widget.namaWaka ?? '-';
     final jabatan = widget.jabatanWaka ?? '-';
@@ -294,7 +296,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     );
   }
 
-  // ⭐ RADIO WAKA — PASTIKAN INI MUNCUL
   Widget _radioWaka(double w, double h) {
     if (widget.wakaList.isEmpty) {
       return Container(
@@ -313,7 +314,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     return Column(
       children: widget.wakaList.map((waka) {
         final selected = _selectedWakaID == waka['id'];
-        final jabatan = waka['jabatan'] ?? '-';
+        final jabatan = waka['nama_jabatan'] ?? '-';
         final deskripsi = _jabatanDeskripsi(jabatan);
 
         return GestureDetector(

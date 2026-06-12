@@ -156,7 +156,6 @@ class _MenuUserState extends State<MenuUser> {
     );
 
     try {
-      await _notifRepo.markAllRead();
       await _loadNotifications();
     } catch (e) {
       setState(() {
