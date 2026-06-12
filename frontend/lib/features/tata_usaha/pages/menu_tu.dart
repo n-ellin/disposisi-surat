@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/user_repository.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
-
+import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_keluar_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_masuk.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_keluar.dart';
+import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_disposisi_surat_masuk_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
-import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
-
-import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_disposisi_surat_masuk_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
-
-//import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
 
 class TuDashboardPage extends StatefulWidget {
   final String jenisSurat;
-
   const TuDashboardPage({super.key, required this.jenisSurat});
 
   @override
@@ -21,10 +21,14 @@ class TuDashboardPage extends StatefulWidget {
 }
 
 class _TuDashboardPageState extends State<TuDashboardPage> {
-  //final _repo = SuratRepository();
+  final _suratMasukRepo = SuratMasukRepository();
+  final _suratKeluarRepo = SuratKeluarRepository();
+  // FIX: ganti getter null jadi instance yang benar
+  final _userRepo = UserRepository();
 
   List<Map<String, dynamic>> _suratList = [];
   bool _isLoading = true;
+  String? _error;
   String _selectedFilter = 'semua';
   String _searchQuery = '';
 
@@ -34,56 +38,150 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
     _fetchSurat();
   }
 
+  void _showProcessDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Colors.black87,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.info_outline,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Surat Dalam Proses',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Surat masih dalam proses pengajuan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTanggal(String rawDate) {
+    try {
+      final dt = DateTime.parse(rawDate);
+      const months = [
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'Mei',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
+      ];
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return rawDate;
+    }
+  }
+
   Future<void> _fetchSurat() async {
-    setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
     if (!mounted) return;
-
     setState(() {
-      _suratList =
-          (widget.jenisSurat == 'Surat Masuk'
-                  ? SuratDummy.masuk
-                  : SuratDummy.keluar)
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      if (widget.jenisSurat == 'Surat Masuk') {
+        final list = await _suratMasukRepo.getList();
+        if (!mounted) return;
+        setState(() {
+          _suratList = list
               .map(
                 (s) => {
-                  ...s,
-                  'status': s['status'] == 'menunggu'
-                      ? 'diproses'
-                      : s['status'],
+                  'jenisSurat': 'Surat Masuk',
+                  'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+                  'status': s.status,
+                  'data': {
+                    'No Surat': s.noSurat,
+                    'Perihal': s.perihal,
+                    'Dari': s.asalSurat,
+                  },
+                  'lampiran': s.lampiranUrls,
+                  '_raw': s,
                 },
               )
               .toList();
-
-      _isLoading = false;
-    });
+        });
+      } else {
+        final list = await _suratKeluarRepo.getList();
+        if (!mounted) return;
+        setState(() {
+          _suratList = list
+              .map(
+                (s) => {
+                  'jenisSurat': 'Surat Keluar',
+                  'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+                  'status': s.status,
+                  'data': {
+                    'No Surat': s.noSurat,
+                    'Perihal': s.perihal,
+                    'Dari': s.tujuan,
+                  },
+                  'lampiran': s.lampiranUrls,
+                  '_raw': s,
+                },
+              )
+              .toList();
+        });
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = parseError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  List<Map<String, dynamic>> get _allSurat => _suratList;
-
   List<Map<String, dynamic>> get _filteredSurat {
-    List<Map<String, dynamic>> result = List.from(_allSurat);
+    List<Map<String, dynamic>> result = List.from(_suratList);
 
     if (_selectedFilter != 'semua') {
-      result = result.where((s) {
-        return (s['status'] ?? '').toString().toLowerCase() ==
-            _selectedFilter.toLowerCase();
-      }).toList();
+      result = result
+          .where(
+            (s) =>
+                (s['status'] ?? '').toString().toLowerCase() ==
+                _selectedFilter.toLowerCase(),
+          )
+          .toList();
     }
 
     if (_searchQuery.isNotEmpty) {
       result = result.where((s) {
         final query = _searchQuery.toLowerCase();
-
         final tanggal = (s['tanggal'] ?? '').toString().toLowerCase();
-
         final status = (s['status'] ?? '').toString().toLowerCase();
-
         final dari = (s['data']?['Dari'] ?? '').toString().toLowerCase();
-
         final perihal = (s['data']?['Perihal'] ?? '').toString().toLowerCase();
-
         return tanggal.contains(query) ||
             status.contains(query) ||
             dari.contains(query) ||
@@ -94,7 +192,6 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
     result.sort((a, b) {
       final dateA = _parseDate(a['tanggal'] ?? '');
       final dateB = _parseDate(b['tanggal'] ?? '');
-
       return dateB.compareTo(dateA);
     });
 
@@ -116,10 +213,8 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
       'Nov': 11,
       'Des': 12,
     };
-
     try {
       final parts = tanggal.trim().split(' ');
-
       return DateTime(
         int.parse(parts[2]),
         bulan[parts[1]] ?? 1,
@@ -127,6 +222,73 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
       );
     } catch (_) {
       return DateTime(2000);
+    }
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> surat) async {
+    final statusCheck = (surat['status'] ?? '').toString().toLowerCase();
+    if (statusCheck == 'diproses') {
+      _showProcessDialog();
+      return;
+    }
+
+    final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
+    final raw = surat['_raw'];
+
+    try {
+      if (isMasuk) {
+        final detail = await _suratMasukRepo.getDetail((raw as SuratMasuk).id);
+
+        // FIX: pakai _userRepo.getList(role: 'waka') bukan getWakaList()
+        // yang hit endpoint tidak exist (/api/users/waka)
+        List<Map<String, dynamic>> wakaListData = [];
+        try {
+          wakaListData = await _userRepo.getList(role: 'waka');
+        } catch (e) {
+          debugPrint('Error fetch waka: $e');
+        }
+
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OutputSuratmasuk(
+              isApproved: detail.status?.toLowerCase() == 'disetujui',
+              catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
+              wakaList: wakaListData,
+              isReadOnly: true,
+              showWaka: true,
+              lampiranUrls: detail.lampiranUrls,
+              suratId: detail.id,
+              namaWaka: detail.namaWaka,
+              jabatanWaka: detail.jabatanWaka,
+            ),
+          ),
+        );
+      } else {
+        final detail = await _suratKeluarRepo.getDetail(
+          (raw as SuratKeluar).id,
+        );
+
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OutputSuratkeluar(
+              catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
+              isReadOnly: true,
+              lampiranUrls: detail.lampiranUrls ?? [],
+            ),
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseError(e))));
     }
   }
 
@@ -153,6 +315,29 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
   }
 
   Widget _buildBody(double w, double h) {
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _fetchSurat,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_filteredSurat.isEmpty) {
       return Center(
         child: Text(
@@ -162,52 +347,24 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.only(bottom: h * 0.12),
-      itemCount: _filteredSurat.length,
-      itemBuilder: (context, index) {
-        final surat = _filteredSurat[index];
-
-        return SuratCard(
-          jenisSurat: surat['jenisSurat'].toString(),
-          tanggal: surat['tanggal'].toString(),
-          status: surat['status']?.toString(),
-          role: CardRole.pegawai,
-          type: CardType.menu,
-          data: Map<String, String>.from(surat['data']),
-          onDetail: () {
-            final status = surat['status']?.toString().toLowerCase();
-            final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
-
-            if (status == 'diproses' || status == 'menunggu') {
-              showProcessDialog(context);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => isMasuk
-                      ? OutputSuratmasuk(
-                          isApproved: status == 'disetujui',
-                          catatan: surat['catatan'] ?? '',
-                          jabatanWaka: surat['jabatanWaka'] ?? '',
-                          lampiranUrls: List<String>.from(
-                            surat['lampiran'] ?? [],
-                          ),
-                          isReadOnly: true,
-                        )
-                      : OutputSuratkeluar(
-                          catatan: surat['catatan'] ?? '-',
-                          isReadOnly: true,
-                          lampiranUrls: List<String>.from(
-                            surat['lampiran'] ?? [],
-                          ),
-                        ),
-                ),
-              );
-            }
-          },
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _fetchSurat,
+      child: ListView.builder(
+        padding: EdgeInsets.only(bottom: h * 0.12),
+        itemCount: _filteredSurat.length,
+        itemBuilder: (context, index) {
+          final surat = _filteredSurat[index];
+          return SuratCard(
+            jenisSurat: surat['jenisSurat'].toString(),
+            tanggal: surat['tanggal'].toString(),
+            status: surat['status']?.toString(),
+            role: CardRole.pegawai,
+            type: CardType.menu,
+            data: Map<String, String>.from(surat['data']),
+            onDetail: () => _openDetail(surat),
+          );
+        },
+      ),
     );
   }
 

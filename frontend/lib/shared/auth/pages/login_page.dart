@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:ta_mobile_disposisi_surat/data/repositories/auth_repository.dart';
+import 'package:dio/dio.dart';
+
 import 'package:ta_mobile_disposisi_surat/core/constants/session.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/auth_repository.dart';
 import 'package:ta_mobile_disposisi_surat/features/users/pages/menu_user_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/home/home.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/reset_kata_sandi/input_email_page.dart';
@@ -34,45 +36,6 @@ class _LoginState extends State<Login> {
     super.dispose();
   }
 
-  // ================= DUMMY CREDENTIALS (TESTING ONLY) =================
-  static const _dummyUsers = [
-    {
-      'email': 'dummy_kepsek@gmail.com',
-      'password': '12345',
-      'role': 'kepsek',
-      'nama': 'Kepala Sekolah',
-      'jabatan': 'Kepala Sekolah',
-    },
-    {
-      'email': 'dummy_pegawai@gmail.com',
-      'password': '12345',
-      'role': 'pegawai',
-      'nama': 'Staff Pegawai',
-      'jabatan': 'Pegawai',
-    },
-    {
-      'email': 'dummy_rpl@gmail.com',
-      'password': '12345',
-      'role': 'users',
-      'nama': 'Kapro RPL',
-      'jabatan': 'Kapro RPL',
-    },
-    {
-      'email': 'dummy_wakahumas@gmail.com',
-      'password': '12345',
-      'role': 'waka',
-      'nama': 'Waka Humas',
-      'jabatan': 'Waka Humas',
-    },
-    {
-      'email': 'dummy_admin@gmail.com',
-      'password': '12345',
-      'role': 'admin',
-      'nama': 'Administrator',
-      'jabatan': 'Admin',
-    },
-  ];
-
   // ================= LOGIN =================
   Future<void> _login() async {
     if (_isLoading) return;
@@ -81,10 +44,8 @@ class _LoginState extends State<Login> {
     final password = _passwordC.text.trim();
 
     setState(() {
-      _emailError = null;
-      _passwordError = null;
-      if (email.isEmpty) _emailError = 'Surel wajib diisi';
-      if (password.isEmpty) _passwordError = 'Kata sandi wajib diisi';
+      _emailError = email.isEmpty ? 'Surel wajib diisi' : null;
+      _passwordError = password.isEmpty ? 'Kata sandi wajib diisi' : null;
     });
 
     if (_emailError != null || _passwordError != null) return;
@@ -92,72 +53,65 @@ class _LoginState extends State<Login> {
     setState(() => _isLoading = true);
 
     try {
-      final res = await _authRepo.login(email: email, password: password);
-      final user = res['user'] as Map<String, dynamic>? ?? {};
+      // 1. Login → dapat { id, nama, email, role }
+      //    Token sudah disimpan otomatis di dalam AuthRepository.login()
+      final user = await _authRepo.login(email, password);
 
-      final roleStr = user['role']?.toString() ?? '';
-      final nama = user['nama']?.toString() ?? '';
-      final jabatan = user['jabatan']?.toString() ?? '';
-
-      //GA JALAN INI
-      if (roleStr == 'admin') {
-        setState(() {
-          _emailError = 'Akun admin tidak tersedia di aplikasi mobile';
-          _isLoading = false;
-        });
-        return;
+      // 2. Fetch jabatan — tidak ada di response login, ambil dari /api/profile
+      String jabatan = '';
+      try {
+        final profile = await _authRepo.getProfile();
+        jabatan = profile['nama_jabatan'] as String? ?? '';
+      } catch (_) {
+        // Non-fatal — lanjut tanpa jabatan
       }
 
+      // 3. Parse & simpan ke Session
+      final role = _parseRole(user['role'] as String? ?? 'user');
+      final nama = user['nama'] as String? ?? '';
+      final userEmail = user['email'] as String? ?? '';
+
+      Session.nama = nama;
+      Session.email = userEmail;
+      Session.jabatan = jabatan;
+      Session.role = role;
+
+      // 4. Navigate ke halaman utama sesuai role
       await _navigateAfterLogin(
-        role: _parseRole(roleStr),
+        role: role,
         nama: nama,
-        email: email,
+        email: userEmail,
         jabatan: jabatan,
       );
-      return;
-    } catch (_) {
-      // BE belum ready — fallback ke dummy
-    }
-    // -- Cek dummy: email dulu, baru password --
-    final emailMatch = _dummyUsers.where((u) => u['email'] == email).toList();
+    } on DioException catch (e) {
+      final responseData = e.response?.data as Map<String, dynamic>?;
+      final fieldErrors = responseData?['errors'];
+      final generalMsg =
+          responseData?['message'] as String? ?? 'Terjadi kesalahan';
 
-    if (emailMatch.isEmpty) {
       setState(() {
-        _emailError = 'Surel tidak ditemukan';
-        _isLoading = false;
+        if (fieldErrors is Map) {
+          // Backend return error per-field
+          _emailError = fieldErrors['email'] as String?;
+          _passwordError = fieldErrors['password'] as String?;
+        } else {
+          // Backend return satu pesan umum — coba tebak field mana yang salah
+          final msg = generalMsg.toLowerCase();
+          if (msg.contains('email') || msg.contains('tidak ditemukan')) {
+            _emailError = generalMsg;
+            _passwordError = null;
+          } else if (msg.contains('password') || msg.contains('sandi')) {
+            _passwordError = generalMsg;
+            _emailError = null;
+          } else {
+            _emailError = generalMsg;
+            _passwordError = null;
+          }
+        }
       });
-      return;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    final dummy = emailMatch.where((u) => u['password'] == password).isNotEmpty
-        ? emailMatch.firstWhere((u) => u['password'] == password)
-        : null;
-
-    if (dummy == null) {
-      setState(() {
-        _passwordError = 'Kata sandi salah';
-        _isLoading = false;
-      });
-      return;
-    }
-
-    final roleStr = dummy['role']!;
-
-    if (roleStr == 'admin') {
-      setState(() {
-        _emailError = 'Akun admin tidak tersedia di aplikasi mobile';
-        _passwordError = null;
-        _isLoading = false;
-      });
-      return;
-    }
-
-    await _navigateAfterLogin(
-      role: _parseRole(roleStr),
-      nama: dummy['nama']!,
-      email: email,
-      jabatan: dummy['jabatan']!,
-    );
   }
 
   // ================= PARSE ROLE =================
@@ -170,7 +124,7 @@ class _LoginState extends State<Login> {
       case 'waka':
         return Role.waka;
       case 'user':
-      case 'users': // handle typo di dummy
+      case 'users':
         return Role.user;
       default:
         return Role.user;
@@ -186,24 +140,14 @@ class _LoginState extends State<Login> {
   }) async {
     if (!mounted) return;
 
-    setState(() => _isLoading = false);
-
-    Session.nama = nama;
-    Session.email = email;
-    Session.jabatan = jabatan;
-    Session.role = role;
-
-    Widget page;
-
-    if (role == Role.user || role == Role.waka) {
-      page = MenuUser(role: role, nama: nama, email: email, jabatan: jabatan);
-    } else {
-      page = Home(role: role, nama: nama, email: email, jabatan: jabatan);
-    }
+    final Widget page = (role == Role.user || role == Role.waka)
+        ? MenuUser(role: role, nama: nama, email: email, jabatan: jabatan)
+        : Home(role: role, nama: nama, email: email, jabatan: jabatan);
 
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => page));
   }
 
+  // ================= BUILD =================
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -230,7 +174,7 @@ class _LoginState extends State<Login> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // ================= ICON =================
+                    // ── ICON ──────────────────────────────────────────────
                     Container(
                       width: 82,
                       height: 82,
@@ -247,7 +191,7 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 22),
 
-                    // ================= TITLE =================
+                    // ── TITLE ─────────────────────────────────────────────
                     const Text(
                       'Masuk',
                       style: TextStyle(
@@ -260,7 +204,7 @@ class _LoginState extends State<Login> {
                     const SizedBox(height: 8),
 
                     Text(
-                      'Silakan login untuk melanjutkan',
+                      'Silakan masuk untuk melanjutkan',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.black.withValues(alpha: 0.45),
@@ -269,7 +213,7 @@ class _LoginState extends State<Login> {
 
                     const SizedBox(height: 34),
 
-                    // ================= CARD =================
+                    // ── CARD ──────────────────────────────────────────────
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
@@ -287,21 +231,21 @@ class _LoginState extends State<Login> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ================= EMAIL =================
+                          // ── EMAIL ────────────────────────────────────
                           const _FieldLabel(text: 'Surel'),
                           const SizedBox(height: 10),
                           _buildEmailField(),
 
                           const SizedBox(height: 22),
 
-                          // ================= PASSWORD =================
+                          // ── PASSWORD ─────────────────────────────────
                           const _FieldLabel(text: 'Kata Sandi'),
                           const SizedBox(height: 10),
                           _buildPasswordField(),
 
                           const SizedBox(height: 10),
 
-                          // ================= FORGOT PASSWORD =================
+                          // ── FORGOT PASSWORD ───────────────────────────
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
@@ -329,7 +273,7 @@ class _LoginState extends State<Login> {
 
                           const SizedBox(height: 24),
 
-                          // ================= LOGIN BUTTON =================
+                          // ── LOGIN BUTTON ──────────────────────────────
                           SizedBox(
                             width: double.infinity,
                             height: 50,
@@ -367,9 +311,8 @@ class _LoginState extends State<Login> {
                       ),
                     ),
 
-                    // ================= COPYRIGHT =================
+                    // ── COPYRIGHT ─────────────────────────────────────────
                     const SizedBox(height: 24),
-
                     Text(
                       '© 2025 SMKN 2 Singosari',
                       textAlign: TextAlign.center,
@@ -394,6 +337,7 @@ class _LoginState extends State<Login> {
       controller: _emailC,
       onChanged: (_) => setState(() => _emailError = null),
       cursorColor: AppColors.bluePrimary,
+      keyboardType: TextInputType.emailAddress,
       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       decoration: _fieldDecoration(
         hint: 'Surel',
@@ -474,7 +418,6 @@ class _LoginState extends State<Login> {
 // ================= FIELD LABEL =================
 class _FieldLabel extends StatelessWidget {
   final String text;
-
   const _FieldLabel({required this.text});
 
   @override

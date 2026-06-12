@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/reset_kata_sandi/otp_verification_page.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 
@@ -14,31 +16,51 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
-
-  void _sendOtp() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            OtpVerificationPage(email: _emailController.text.trim()),
-      ),
-    );
-  }
+  String? _errorMessage;
 
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  /// FIX: kirim OTP ke BE via POST /api/auth/forgot-password
+  /// BE akan kirim OTP ke email jika terdaftar.
+  Future<void> _sendOtp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await ApiClient.dio.post(
+        '/api/auth/forgot-password',
+        data: {'email': _emailController.text.trim()},
+      );
+
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      // Navigasi ke halaman OTP verification
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              OtpVerificationPage(email: _emailController.text.trim()),
+        ),
+      );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        // BE mengembalikan success=true meski email tidak ada (security reason)
+        // Jadi jika error, kemungkinan network issue
+        _errorMessage = parseError(e);
+      });
+    }
   }
 
   InputDecoration _inputDecoration({required double sw, required double sh}) {
@@ -78,27 +100,19 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     final sw = size.width;
     final sh = size.height;
 
-    // ── Responsive ──────────────────────────────────────────────
     final hPad = sw * 0.06;
-
     final iconSize = sw * 0.14;
     final iconRadius = sw * 0.04;
-
     final titleSize = (sw * 0.075).clamp(28.0, 34.0);
     final bodySize = (sw * 0.042).clamp(15.0, 18.0);
     final labelSize = (sw * 0.038).clamp(14.0, 16.0);
-
     final btnHeight = sh * 0.065;
-
-    final spacingXL = sh * 0.035;
     final spacingL = sh * 0.022;
     final spacingM = sh * 0.016;
     final spacingS = sh * 0.008;
-    // ────────────────────────────────────────────────────────────
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -129,8 +143,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(height: spacingL),
-
-                  // ── Icon ─────────────────────────────────────
                   Container(
                     width: iconSize,
                     height: iconSize,
@@ -144,10 +156,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       size: iconSize * 0.5,
                     ),
                   ),
-
                   SizedBox(height: spacingL),
-
-                  // ── Title ────────────────────────────────────
                   Text(
                     'Lupa Password?',
                     style: TextStyle(
@@ -156,9 +165,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       color: Colors.black87,
                     ),
                   ),
-
                   SizedBox(height: spacingS),
-
                   Text(
                     'Masukkan surel kamu, kami akan kirimkan\nkode OTP untuk reset password.',
                     style: TextStyle(
@@ -167,10 +174,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       height: 1.5,
                     ),
                   ),
-
                   SizedBox(height: spacingL),
-
-                  // ── Email Label ──────────────────────────────
                   Text(
                     'Surel',
                     style: TextStyle(
@@ -179,31 +183,44 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       color: Colors.black87,
                     ),
                   ),
-
                   SizedBox(height: spacingS),
-
-                  // ── TextField ────────────────────────────────
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     style: TextStyle(fontSize: bodySize),
                     decoration: _inputDecoration(sw: sw, sh: sh),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.isEmpty)
                         return 'Surel tidak boleh kosong';
-                      }
-
-                      if (!value.contains('@')) {
+                      if (!value.contains('@'))
                         return 'Format surel tidak valid';
-                      }
-
                       return null;
                     },
                   ),
-
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: EdgeInsets.only(top: spacingS),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFEF4444),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   SizedBox(height: spacingL),
-
-                  // ── Button ───────────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     height: btnHeight,
@@ -213,8 +230,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                         backgroundColor: AppColors.bluePrimary,
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        disabledBackgroundColor: AppColors.bluePrimary,
-                        disabledForegroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(sw * 0.03),
                         ),
@@ -237,7 +252,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             ),
                     ),
                   ),
-
                   SizedBox(height: spacingM),
                 ],
               ),

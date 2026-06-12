@@ -453,7 +453,7 @@ class _DateRangeFilterContentState extends State<_DateRangeFilterContent> {
           ],
           style: TextStyle(fontSize: (w * 0.037).clamp(13.0, 16.0)),
           decoration: InputDecoration(
-            hintText: 'dd/mm/yyyy',
+            hintText: 'hh/bb/tttt',
             hintStyle: TextStyle(
               color: Colors.grey.shade400,
               fontSize: (w * 0.037).clamp(13.0, 16.0),

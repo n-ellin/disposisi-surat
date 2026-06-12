@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ta_mobile_disposisi_surat/core/storage/token_storage.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/auth_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/session.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/pages/login_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -38,13 +42,13 @@ class _SplashScreenState extends State<SplashScreen>
       curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
     );
 
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+          ),
+        );
 
     _dotFadeAnim = CurvedAnimation(
       parent: _controller,
@@ -53,13 +57,90 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 3), () {
+    // FIX: cek token setelah animasi selesai (3 detik)
+    Timer(const Duration(seconds: 3), _checkTokenAndNavigate);
+  }
+
+  /// Cek apakah user sudah login sebelumnya.
+  /// Jika token ada → ambil profile dan arahkan ke halaman sesuai role.
+  /// Jika tidak → arahkan ke Login.
+  Future<void> _checkTokenAndNavigate() async {
+    if (!mounted) return;
+
+    final hasToken = await TokenStorage.hasToken();
+
+    if (!hasToken) {
+      _goToLogin();
+      return;
+    }
+
+    // Token ada → verifikasi ke BE dan ambil data user
+    try {
+      final authRepo = AuthRepository();
+      final user = await authRepo.getProfile();
+
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const Login()),
-      );
-    });
+
+      final roleStr = user['role'] as String? ?? '';
+      final role = _parseRole(roleStr);
+
+      // Simpan ke session
+      Session.namaUser = user['nama'] as String? ?? '';
+      Session.emailUser = user['email'] as String? ?? '';
+      Session.namaJabatan = user['nama_jabatan'] as String? ?? '';
+      Session.role = role;
+
+      _goToMenu(role, user);
+    } catch (_) {
+      // Token kadaluarsa atau invalid → hapus dan ke login
+      await TokenStorage.deleteToken();
+      if (!mounted) return;
+      _goToLogin();
+    }
+  }
+
+  Role _parseRole(String roleStr) {
+    switch (roleStr.toLowerCase()) {
+      case 'admin':
+      case 'pegawai':
+        return Role.pegawai;
+      case 'kepsek':
+        return Role.kepsek;
+      case 'waka':
+        return Role.waka;
+      default:
+        return Role.user;
+    }
+  }
+
+  void _goToLogin() {
+    Navigator.pushReplacementNamed(context, '/signin');
+  }
+
+  void _goToMenu(Role role, Map<String, dynamic> user) {
+    switch (role) {
+      case Role.pegawai:
+        Navigator.pushReplacementNamed(context, '/menu_tu');
+        break;
+      case Role.kepsek:
+        Navigator.pushReplacementNamed(context, '/menu_kepsek');
+        break;
+      case Role.waka:
+      case Role.user:
+        Navigator.pushReplacementNamed(
+          context,
+          '/menu_other',
+          arguments: {
+            'nama': user['nama'] ?? '',
+            'email': user['email'] ?? '',
+            'jabatan': user['nama_jabatan'] ?? '',
+            'role': role,
+          },
+        );
+        break;
+      default:
+        _goToLogin();
+    }
   }
 
   @override
@@ -78,27 +159,22 @@ class _SplashScreenState extends State<SplashScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo + name dari asset
             FadeTransition(
               opacity: _fadeAnim,
               child: SlideTransition(
                 position: _slideAnim,
                 child: Column(
                   children: [
-                    // Logo dari asset
                     Image.asset(
                       'assets/images/logoapk.png',
                       width: size.width * 0.28,
                       height: size.width * 0.28,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stack) {
-                        // Fallback ke CustomPainter jika asset tidak ditemukan
                         return SizedBox(
                           width: size.width * 0.28,
                           height: size.width * 0.35,
-                          child: CustomPaint(
-                            painter: _LogoPainter(),
-                          ),
+                          child: CustomPaint(painter: _LogoPainter()),
                         );
                       },
                     ),
@@ -116,22 +192,14 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
-
             const SizedBox(height: 48),
-
-            // Loading dots
-            FadeTransition(
-              opacity: _dotFadeAnim,
-              child: const _LoadingDots(),
-            ),
+            FadeTransition(opacity: _dotFadeAnim, child: const _LoadingDots()),
           ],
         ),
       ),
     );
   }
 }
-
-// ─── Logo CustomPainter (fallback) ───────────────────────────────────────────
 
 class _LogoPainter extends CustomPainter {
   @override
@@ -191,8 +259,6 @@ class _LogoPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ─── Loading Dots ─────────────────────────────────────────────────────────────
-
 class _LoadingDots extends StatefulWidget {
   const _LoadingDots();
 
@@ -237,8 +303,7 @@ class _LoadingDotsState extends State<_LoadingDots>
                 shape: BoxShape.circle,
                 color: i == 0
                     ? const Color(0xFF147A94)
-                    : const Color(0xFF4D9CD5)
-                        .withOpacity(i == 1 ? 0.7 : 0.35),
+                    : const Color(0xFF4D9CD5).withOpacity(i == 1 ? 0.7 : 0.35),
               ),
             );
           },

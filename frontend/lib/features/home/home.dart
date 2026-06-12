@@ -1,26 +1,28 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+import 'package:dio/dio.dart';
 
-// TODO: BE — hapus import dummy & aktifkan kembali SuratRepository saat API sudah siap
-// import '../../../data/repositories/surat_repository.dart';
-// Tambah import di atas
-// import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart'; // DUMMY: di-comment, pakai data dummy
-
-import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
-
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_keluar_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/notification_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/dashboard_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/user_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_masuk.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_keluar.dart';
+import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
 
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 import 'package:ta_mobile_disposisi_surat/features/notifications/notification_page.dart';
-import 'package:ta_mobile_disposisi_surat/shared/widgets/process_dialog.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
 
 import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/disposisi_suratmasuk.dart';
 import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/menu_kepsek_page.dart';
-import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/pengajuan_suratkeluar.dart';
+import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/pengajuan_suratkeluar.dart'
+    show InputSuratKeluarKepsek;
 
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_disposisi_surat_masuk_page.dart';
 import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
@@ -31,6 +33,7 @@ class Home extends StatefulWidget {
   final String nama;
   final String email;
   final String jabatan;
+  final String? namaWaka;
 
   const Home({
     super.key,
@@ -38,7 +41,7 @@ class Home extends StatefulWidget {
     required this.nama,
     required this.email,
     required this.jabatan,
-    // TODO: BE — hapus suratOverride setelah API aktif, tidak diperlukan lagi
+    this.namaWaka,
   });
 
   @override
@@ -46,112 +49,154 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  DateTime _parseDate(String tanggal) {
-    const bulan = {
-      'Jan': 1,
-      'Feb': 2,
-      'Mar': 3,
-      'Apr': 4,
-      'Mei': 5,
-      'Jun': 6,
-      'Jul': 7,
-      'Agu': 8,
-      'Sep': 9,
-      'Okt': 10,
-      'Nov': 11,
-      'Des': 12,
-    };
-    try {
-      final parts = tanggal.trim().split(' ');
-      final d = int.parse(parts[0]);
-      final m = bulan[parts[1]] ?? 1;
-      final y = int.parse(parts[2]);
-      return DateTime(y, m, d);
-    } catch (_) {
-      return DateTime(2000);
-    }
-  }
+  // =========================
+  // REPOSITORIES
+  // =========================
+  final _suratMasukRepo = SuratMasukRepository();
+  final _suratKeluarRepo = SuratKeluarRepository();
+  final _notifRepo = NotificationRepository();
+  final _dashboardRepo = DashboardRepository(); // ← TAMBAH
+  final _userRepo = UserRepository(); // ← TAMBAH
+
   // =========================
   // STATE
   // =========================
-
-  // TODO: BE — aktifkan kembali _suratRepo saat API sudah siap
-  // final _suratRepo = SuratRepository();
-
-  // STATE
-  // final _suratRepo = SuratRepository(); // DUMMY: di-comment, tidak pakai API
-  List<Map<String, dynamic>> _suratMasukList = [];
-  List<Map<String, dynamic>> _suratKeluarList = [];
+  List<SuratMasuk> _suratMasukList = [];
+  List<SuratKeluar> _suratKeluarList = [];
+  List<Map<String, dynamic>> notifications = [];
+  Map<String, dynamic> _dashboardStats = {}; // ← TAMBAH
   bool _isLoading = true;
-  late List<Map<String, dynamic>> notifications;
+  String? _error;
+
+  Timer? _refreshTimer;
+  Timer? _notifTimer;
+
+  // =========================
+  // LIFECYCLE
+  // =========================
   @override
   void initState() {
     super.initState();
-    _initNotifications();
-    _loadData();
+    _fetchData();
+    _fetchNotifications();
+
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _fetchData(),
+    );
+    _notifTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _fetchNotifications(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _notifTimer?.cancel();
+    super.dispose();
+  }
+
+  // =========================
+  // DIALOG
+  // =========================
+  void _showProcessDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Colors.black87,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.info_outline,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Surat Dalam Proses',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Surat masih dalam proses pengajuan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // =========================
   // NOTIFICATION
   // =========================
-  void _initNotifications() {
-    switch (widget.role) {
-      case Role.pegawai:
-        notifications = List.from(notifTU);
-        break;
-      case Role.kepsek:
-        notifications = List.from(notifKepsek);
-        break;
-      default:
-        notifications = [];
-    }
+  Future<void> _fetchNotifications() async {
+    try {
+      final result = await _notifRepo.getList();
+      if (!mounted) return;
+      setState(() => notifications = result);
+    } catch (_) {}
   }
 
   int get notifCount => notifications.where((e) => e['isRead'] == false).length;
 
+  Future<void> openNotification() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NotificationPage(role: widget.role)),
+    );
+    await _notifRepo.markAllRead();
+    await _fetchNotifications();
+  }
+
   // =========================
-  // LOAD DATA — DUMMY
-  // TODO: BE — ganti seluruh isi _loadData() dengan pemanggilan API berikut
-  //   saat backend sudah siap:
-  //
-  //   try {
-  //     final masuk  = await _suratRepo.getSuratMasukList();
-  //     final keluar = await _suratRepo.getSuratKeluarList();
-  //     if (!mounted) return;
-  //     setState(() {
-  //       _suratMasukList  = List<Map<String, dynamic>>.from(masuk);
-  //       _suratKeluarList = List<Map<String, dynamic>>.from(keluar);
-  //       _isLoading = false;
-  //     });
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     setState(() => _isLoading = false);
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('Gagal load data: $e'), backgroundColor: Colors.red),
-  //     );
-  //   }
+  // FETCH DATA
   // =========================
-  Future<void> _loadData() async {
+  Future<void> _fetchData() async {
     if (!mounted) return;
-
-    setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (!mounted) return;
-
     setState(() {
-      _suratMasukList = List<Map<String, dynamic>>.from(SuratDummy.masuk);
-      _suratKeluarList = List<Map<String, dynamic>>.from(SuratDummy.keluar);
-      _isLoading = false;
+      _isLoading = true;
+      _error = null;
     });
+
+    try {
+      // Fetch surat + dashboard stats secara paralel
+      final results = await Future.wait([
+        _suratMasukRepo.getList(),
+        _suratKeluarRepo.getList(),
+        _dashboardRepo.getStats(), // ← TAMBAH
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _suratMasukList = List<SuratMasuk>.from(results[0] as List);
+        _suratKeluarList = List<SuratKeluar>.from(results[1] as List);
+        _dashboardStats = results[2] as Map<String, dynamic>; // ← TAMBAH
+      });
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = parseError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   // =========================
   // FORMAT TANGGAL
-  // TODO: BE — tanggal dari API berformat ISO (e.g. "2025-06-03T00:00:00"),
-  //   sedangkan dummy sudah berformat "03 Jun 2025". Pastikan _formatTanggal
-  //   tetap dipanggil saat integrasi API karena getter allSurat sudah menggunakannya.
   // =========================
   String _formatTanggal(String rawDate) {
     try {
@@ -173,30 +218,67 @@ class _HomeState extends State<Home> {
       ];
       return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
     } catch (_) {
-      return rawDate; // fallback kalau format aneh
+      return rawDate;
+    }
+  }
+
+  DateTime _parseDate(String tanggal) {
+    const bulan = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'Mei': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Agu': 8,
+      'Sep': 9,
+      'Okt': 10,
+      'Nov': 11,
+      'Des': 12,
+    };
+    try {
+      final parts = tanggal.trim().split(' ');
+      return DateTime(
+        int.parse(parts[2]),
+        bulan[parts[1]] ?? 1,
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return DateTime(2000);
     }
   }
 
   // =========================
+  // HELPER STATUS
+  // =========================
+  bool _isDisposisiDone(String? status) {
+    if (status == null) return false;
+    final s = status.toLowerCase();
+    return s == 'disetujui' ||
+        s == 'ditolak' ||
+        s == 'selesai' ||
+        s == 'diteruskan' ||
+        s == 'dikonfirmasi';
+  }
+
+  // =========================
   // DATA GETTERS
-  // TODO: BE — key mapping di bawah menyesuaikan struktur dummy (perihal, dari, dll).
-  //   Saat API aktif, sesuaikan kembali key dengan response JSON backend:
-  //     'No Surat' → s['no_surat']
-  //     'Perihal'  → s['perihal_surat'] (masuk) / s['perihal'] (keluar)
-  //     'Asal'     → s['asal_surat']
-  //     'Tujuan'   → s['tujuan']
-  //     'status'   → s['status_verifikasi']
-  //     'tanggal'  → _formatTanggal(s['tanggal_surat'])
   // =========================
   List<Map<String, dynamic>> get allSurat {
     final masuk = _suratMasukList
         .map(
           (s) => {
-            ...s,
-            'jenisSurat': s['jenisSurat'],
-            'tanggal': s['tanggal'],
-            'status': s['status'],
-            'data': s['data'],
+            'jenisSurat': 'Surat Masuk',
+            'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+            'status': s.status,
+            'lampiran': s.lampiranUrls,
+            'data': {
+              'No Surat': s.noSurat,
+              'Perihal': s.perihal,
+              'Dari': s.asalSurat,
+            },
+            '_raw': s,
           },
         )
         .toList();
@@ -204,11 +286,17 @@ class _HomeState extends State<Home> {
     final keluar = _suratKeluarList
         .map(
           (s) => {
-            ...s,
-            'jenisSurat': s['jenisSurat'],
-            'tanggal': s['tanggal'],
-            'status': s['status'],
-            'data': s['data'],
+            'jenisSurat': 'Surat Keluar',
+            'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+            'status': s.status,
+            'kode_surat': s.kodeSurat.toString(),
+            'lampiran': s.lampiranUrls,
+            'data': {
+              'No Surat': s.noSurat,
+              'Perihal': s.perihal,
+              'Dari': s.tujuan,
+            },
+            '_raw': s,
           },
         )
         .toList();
@@ -221,13 +309,95 @@ class _HomeState extends State<Home> {
     sorted.sort((a, b) {
       final dateA = _parseDate(a['tanggal'] ?? '');
       final dateB = _parseDate(b['tanggal'] ?? '');
-      return dateB.compareTo(dateA); // terbaru di atas
+      return dateB.compareTo(dateA);
     });
     return sorted.take(5).toList();
   }
 
-  int get jumlahSuratMasuk => _suratMasukList.length;
-  int get jumlahSuratKeluar => _suratKeluarList.length;
+  // ── STAT GETTERS — pakai API stats, fallback ke hitung lokal ──────────────
+  //
+  // Kenapa fallback? Supaya UI tetap menampilkan angka yang benar
+  // meskipun backend mengembalikan field dengan nama berbeda atau kosong.
+  // Setelah field API dikonfirmasi stabil, fallback bisa dihapus.
+
+  int get jumlahSuratMasuk {
+    // API field untuk semua role: 'total_surat_masuk'
+    final fromApi = _dashboardStats['total_surat_masuk'];
+    if (fromApi != null) return (fromApi as num).toInt();
+    // Fallback: hitung dari list
+    return _suratMasukList.length;
+  }
+
+  int get jumlahSuratKeluar {
+    // API field untuk semua role: 'total_surat_keluar'
+    final fromApi = _dashboardStats['total_surat_keluar'];
+    if (fromApi != null) return (fromApi as num).toInt();
+    // Fallback: hitung dari list
+    return _suratKeluarList.length;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // =========================
+  // OPEN DETAIL PEGAWAI/TU
+  // =========================
+  Future<void> _openDetailPegawai(Map<String, dynamic> surat) async {
+    final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
+    final raw = surat['_raw'];
+
+    try {
+      if (isMasuk) {
+        final detail = await _suratMasukRepo.getDetail((raw as SuratMasuk).id);
+
+        // ── GANTI raw Dio call → UserRepository ──────────────────────────
+        List<Map<String, dynamic>> wakaListData = [];
+        try {
+          wakaListData = await _userRepo.getList(role: 'waka');
+        } catch (e) {
+          debugPrint('Error fetch waka: $e');
+        }
+        // ─────────────────────────────────────────────────────────────────
+
+        if (!mounted) return;
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OutputSuratmasuk(
+              isApproved: detail.status?.toLowerCase() == 'disetujui',
+              catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
+              wakaList: wakaListData,
+              isReadOnly: false,
+              showWaka: true,
+              lampiranUrls: detail.lampiranUrls,
+              suratId: detail.id,
+              namaWaka: detail.namaWaka,
+              jabatanWaka: detail.jabatanWaka,
+            ),
+          ),
+        );
+      } else {
+        final detail = await _suratKeluarRepo.getDetail(
+          (raw as SuratKeluar).id,
+        );
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OutputSuratkeluar(
+              catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
+              isReadOnly: false,
+              lampiranUrls: detail.lampiranUrls ?? [],
+            ),
+          ),
+        );
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseError(e))));
+    }
+  }
 
   // =========================
   // RESPONSIVE
@@ -241,24 +411,6 @@ class _HomeState extends State<Home> {
     final width = MediaQuery.of(context).size.width;
     final scale = (width / 375).clamp(min, max);
     return size * scale;
-  }
-
-  // =========================
-  // NOTIFICATION PAGE
-  // =========================
-  Future<void> openNotification() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            NotificationPage(role: widget.role, notifications: notifications),
-      ),
-    );
-    setState(() {
-      for (final notif in notifications) {
-        notif['isRead'] = true;
-      }
-    });
   }
 
   // =========================
@@ -282,44 +434,28 @@ class _HomeState extends State<Home> {
     }
   }
 
-  void openDetail(Map<String, dynamic> surat) {
-    final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
+  void openDetail(Map<String, dynamic> surat) async {
+    final statusCheck = (surat['status'] ?? '').toString().toLowerCase();
+    if ((statusCheck == 'diproses' || statusCheck == 'menunggu') &&
+        widget.role != Role.kepsek) {
+      _showProcessDialog();
+      return;
+    }
 
     if (widget.role == Role.kepsek) {
-      Navigator.push(
+      final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
+      final result = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
           builder: (_) => isMasuk
               ? InputSuratMasuk(surat: surat)
-              : InputSuratKeluar(surat: surat),
+              : InputSuratKeluarKepsek(surat: surat),
         ),
       );
+      if (result != null && mounted) _fetchData();
       return;
     }
-
-    final status = surat['status']?.toString().toLowerCase() ?? '';
-
-    if (status == 'diproses' || status == 'menunggu') {
-      showProcessDialog(context);
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => isMasuk
-            ? OutputSuratmasuk(
-                isApproved: status == 'disetujui',
-                catatan: surat['catatan'] ?? '',
-                jabatanWaka: surat['jabatanWaka'] ?? '',
-              )
-            : OutputSuratkeluar(
-                catatan: surat['catatan'] ?? '-',
-                isReadOnly: false,
-                lampiranUrls: List<String>.from(surat['lampiran'] ?? []),
-              ),
-      ),
-    );
+    await _openDetailPegawai(surat);
   }
 
   // =========================
@@ -329,13 +465,8 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Scaffold(
       backgroundColor: AppColors.bg,
-
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -354,12 +485,10 @@ class _HomeState extends State<Home> {
           SizedBox(height: bottomPadding),
         ],
       ),
-
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── HEADER ──────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
@@ -480,58 +609,7 @@ class _HomeState extends State<Home> {
               ),
             ),
 
-            // ── LIST ────────────────────────────────────
-            Expanded(
-              child: allSurat.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 48,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Belum ada surat',
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: RefreshIndicator(
-                        onRefresh: _loadData,
-                        child: ListView.builder(
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: suratTerbaru.length,
-                          itemBuilder: (context, index) {
-                            final surat = suratTerbaru[index];
-                            return SuratCard(
-                              jenisSurat: surat['jenisSurat'] ?? '',
-                              tanggal: surat['tanggal'] ?? '-',
-                              data: Map<String, String>.from(
-                                surat['data'] ?? {},
-                              ),
-                              role: widget.role == Role.kepsek
-                                  ? CardRole.kepsek
-                                  : CardRole.pegawai,
-                              type: CardType.home,
-                              status: widget.role == Role.kepsek
-                                  ? null
-                                  : surat['status'],
-                              onDetail: () => openDetail(surat),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-            ),
+            Expanded(child: _buildBody()),
 
             SizedBox(height: rf(context, 20)),
           ],
@@ -539,11 +617,88 @@ class _HomeState extends State<Home> {
       ),
     );
   }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.wifi_off_rounded,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: _fetchData,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Coba lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (allSurat.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              'Belum ada surat',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: RefreshIndicator(
+        onRefresh: _fetchData,
+        child: ListView.builder(
+          physics: const BouncingScrollPhysics(),
+          itemCount: suratTerbaru.length,
+          itemBuilder: (context, index) {
+            final surat = suratTerbaru[index];
+            return SuratCard(
+              jenisSurat: surat['jenisSurat'] ?? '',
+              tanggal: surat['tanggal'] ?? '-',
+              data: Map<String, String>.from(surat['data'] ?? {}),
+              role: widget.role == Role.kepsek
+                  ? CardRole.kepsek
+                  : CardRole.pegawai,
+              type: CardType.home,
+              status: widget.role == Role.kepsek ? null : surat['status'],
+              onDetail: () => openDetail(surat),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
-// ======================================
+// ============================================================
 // STAT CARD
-// ======================================
+// ============================================================
 class _StatCard extends StatelessWidget {
   final VoidCallback onTap;
   final LinearGradient gradient;

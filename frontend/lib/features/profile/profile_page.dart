@@ -4,6 +4,12 @@ import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/session.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
 
+// ── Panduan per role ────────────────────────────────────────────────────────
+import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_tu_page.dart';
+import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_kepsek_page.dart';
+import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_waka_page.dart';
+import 'package:ta_mobile_disposisi_surat/shared/auth/panduan/panduan_user_page.dart';
+
 import 'package:ta_mobile_disposisi_surat/shared/auth/change_password_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/auth/pages/login_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
@@ -22,7 +28,31 @@ class ProfilePage extends StatelessWidget {
     required this.role,
   });
 
-  bool get _canChangePassword => Session.role == Role.user;
+  // profile_page.dart
+  bool get _canChangePassword => role == Role.user;
+
+  // ── Navigasi ke panduan sesuai role ───────────────────────────────────────
+  void _openPanduan(BuildContext context) {
+    final Widget page;
+
+    switch (role) {
+      case Role.pegawai:
+      case Role.tu:
+        page = PanduanTuPage(nama: nama, email: email, role: role);
+        break;
+      case Role.kepsek:
+        page = PanduanKepsekPage(nama: nama, email: email, role: role);
+        break;
+      case Role.waka:
+        page = PanduanWakaPage(nama: nama, email: email, role: role);
+        break;
+      case Role.user:
+        page = PanduanUserPage(nama: nama, email: email, role: role);
+        break;
+    }
+
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +73,7 @@ class ProfilePage extends StatelessWidget {
             currentIndex: 2,
             role: role,
             onTap: (index) {
-              handleNavbarTap(context, index, role, nama, email, jabatan);
+              handleNavbarTap(context, index, role, nama, email, '');
             },
           ),
           ColoredBox(
@@ -65,7 +95,7 @@ class ProfilePage extends StatelessWidget {
 
                   // ── TITLE ──────────────────────────────────────────────
                   Text(
-                    'Profile',
+                    'Profil',
                     style: TextStyle(
                       color: AppColors.bluePrimary,
                       fontSize: rf(24),
@@ -100,18 +130,11 @@ class ProfilePage extends StatelessWidget {
                     rf: rf,
                     child: Column(
                       children: [
-                        _profileTile(
-                          context,
-                          icon: Icons.work_outline,
-                          label: 'JABATAN',
-                          value: jabatan,
-                          rf: rf,
-                        ),
                         SizedBox(height: rf(12)),
                         _profileTile(
                           context,
                           icon: Icons.person_outline,
-                          label: 'NAMA',
+                          label: 'Nama',
                           value: nama,
                           rf: rf,
                         ),
@@ -119,8 +142,16 @@ class ProfilePage extends StatelessWidget {
                         _profileTile(
                           context,
                           icon: Icons.email_outlined,
-                          label: 'EMAIL',
+                          label: 'Email',
                           value: email,
+                          rf: rf,
+                        ),
+                        SizedBox(height: rf(12)),
+                        _profileTile(
+                          context,
+                          icon: Icons.work_outline_rounded,
+                          label: 'Jabatan',
+                          value: jabatan.isNotEmpty ? jabatan : '-',
                           rf: rf,
                         ),
                       ],
@@ -161,7 +192,9 @@ class ProfilePage extends StatelessWidget {
                                 Container(
                                   padding: EdgeInsets.all(rf(10)),
                                   decoration: BoxDecoration(
-                                    color: AppColors.bluePrimary.withOpacity(0.10),
+                                    color: AppColors.bluePrimary.withOpacity(
+                                      0.10,
+                                    ),
                                     borderRadius: BorderRadius.circular(rf(12)),
                                   ),
                                   child: Icon(
@@ -199,13 +232,79 @@ class ProfilePage extends StatelessWidget {
                     SizedBox(height: rf(20)),
                   ],
 
+                  // ── BANTUAN CARD ──────────────────────────────────────
+                  _cardWrapper(
+                    rf: rf,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bantuan',
+                          style: TextStyle(
+                            fontSize: rf(15),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        SizedBox(height: rf(16)),
+
+                        InkWell(
+                          borderRadius: BorderRadius.circular(rf(14)),
+                          onTap: () => _openPanduan(context),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(rf(10)),
+                                decoration: BoxDecoration(
+                                  color: AppColors.bluePrimary.withOpacity(
+                                    0.10,
+                                  ),
+                                  borderRadius: BorderRadius.circular(rf(12)),
+                                ),
+                                child: Icon(
+                                  Icons.menu_book_outlined,
+                                  color: AppColors.bluePrimary,
+                                  size: rf(22),
+                                ),
+                              ),
+
+                              SizedBox(width: rf(14)),
+
+                              Expanded(
+                                child: Text(
+                                  'Panduan Aplikasi',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: rf(15),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+
+                              Icon(
+                                Icons.chevron_right,
+                                size: rf(26),
+                                color: Colors.grey.shade500,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: rf(20)),
+
                   // ── LOGOUT BUTTON ──────────────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     height: rf(50),
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.red.shade400, width: 1.4),
+                        side: BorderSide(
+                          color: Colors.red.shade400,
+                          width: 1.4,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(rf(16)),
                         ),

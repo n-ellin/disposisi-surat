@@ -1,19 +1,18 @@
-import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/api_config.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
+import 'package:ta_mobile_disposisi_surat/core/helpers/download_helper.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper — deteksi apakah URL adalah PDF
+// ─────────────────────────────────────────────────────────────────────────────
+bool _isPdf(String url) =>
+    url.toLowerCase().contains('.pdf') || url.toLowerCase().contains('/pdf');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FULL SCREEN IMAGE VIEWER
-// Untuk menampilkan lampiran berupa gambar (URL / asset).
-// Tidak berubah dari versi sebelumnya.
+// Mendukung: gambar (jpg/png/dll) dan PDF dari URL
 // ─────────────────────────────────────────────────────────────────────────────
-
 class FullScreenImageViewer extends StatefulWidget {
   const FullScreenImageViewer({
     super.key,
@@ -35,9 +34,7 @@ class FullScreenImageViewer extends StatefulWidget {
 class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
   late PageController _pageController;
   late int _currentIndex;
-
   bool _isDownloading = false;
-  double _downloadProgress = 0;
 
   @override
   void initState() {
@@ -52,81 +49,43 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
     super.dispose();
   }
 
+  // ── Download gambar/file yang sedang aktif ─────────────────────────────────
   Future<void> _downloadImage() async {
-    final urls = widget.imageUrls ?? [];
-    final singleUrl = widget.imageUrl ?? '';
+    final images = widget.imageUrls ?? [];
+    final String? url = images.isNotEmpty
+        ? images[_currentIndex]
+        : widget.imageUrl;
 
-    final targetUrl = urls.isNotEmpty ? urls[_currentIndex] : singleUrl;
-
-    if (targetUrl.isEmpty) {
-      _showSnackbar('Tidak ada lampiran', isError: true);
-      return;
-    }
-
-    final granted = await _requestPermission();
-    if (!granted) {
-      _showSnackbar('Izin ditolak', isError: true);
-      return;
-    }
-
-    setState(() {
-      _isDownloading = true;
-      _downloadProgress = 0;
-    });
-
-    try {
-      final dio = Dio();
-      final dir = await getTemporaryDirectory();
-      final fileName = 'lampiran_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savePath = '${dir.path}/$fileName';
-
-      await dio.download(
-        targetUrl,
-        savePath,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            setState(() {
-              _downloadProgress = received / total;
-            });
-          }
-        },
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Tidak ada file untuk diunduh.')),
       );
-
-      await Gal.putImage(savePath);
-
-      final file = File(savePath);
-      if (await file.exists()) await file.delete();
-
-      _showSnackbar('Tersimpan ke galeri');
-    } catch (_) {
-      _showSnackbar('Gagal mengunduh', isError: true);
-    } finally {
-      setState(() {
-        _isDownloading = false;
-        _downloadProgress = 0;
-      });
+      return;
     }
-  }
 
-  Future<bool> _requestPermission() async {
-    if (Platform.isAndroid) {
-      final status = await Permission.photos.request();
-      if (status.isGranted) return true;
-      final storage = await Permission.storage.request();
-      return storage.isGranted;
-    }
-    final ios = await Permission.photos.request();
-    return ios.isGranted;
-  }
+    setState(() => _isDownloading = true);
 
-  void _showSnackbar(String msg, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-      ),
+    await DownloadHelper.downloadToGallery(
+      context,
+      imageUrl: url,
+      fileName:
+          'surat_halaman_${_currentIndex + 1}${_isPdf(url) ? '.pdf' : '.jpg'}',
     );
+
+    if (mounted) setState(() => _isDownloading = false);
+  }
+
+  Future<void> _downloadAll() async {
+    final images = widget.imageUrls ?? [];
+    if (images.isEmpty) return;
+
+    setState(() => _isDownloading = true);
+    await DownloadHelper.downloadAllPages(
+      context,
+      imageUrls: images,
+      prefix: 'surat',
+    );
+    if (mounted) setState(() => _isDownloading = false);
   }
 
   bool get _isSmallDevice => MediaQuery.of(context).size.width < 600;
@@ -146,28 +105,18 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
             constraints: const BoxConstraints(maxWidth: 1100),
             child: Stack(
               children: [
+                // ── KONTEN UTAMA ───────────────────────────────────────────
                 if (images.isNotEmpty)
                   PageView.builder(
                     controller: _pageController,
                     itemCount: images.length,
                     onPageChanged: (i) => setState(() => _currentIndex = i),
-                    itemBuilder: (_, i) {
-                      return InteractiveViewer(
-                        minScale: 0.5,
-                        maxScale: 4.0,
-                        child: Center(
-                          child: Image.network(
-                            images[i],
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => _placeholder(),
-                          ),
-                        ),
-                      );
-                    },
+                    itemBuilder: (_, i) => _buildItem(images[i]),
                   )
                 else
-                  Center(child: _buildSingleImage()),
+                  Center(child: _buildSingleItem()),
 
+                // ── TOMBOL TUTUP ───────────────────────────────────────────
                 Positioned(
                   top: 12,
                   right: 12,
@@ -177,6 +126,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                   ),
                 ),
 
+                // ── COUNTER HALAMAN ────────────────────────────────────────
                 if (total > 1)
                   Positioned(
                     top: 16,
@@ -203,6 +153,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
+                // ── ARROW KIRI ─────────────────────────────────────────────
                 if (_showArrows && total > 1 && _currentIndex > 0)
                   Positioned(
                     left: 10,
@@ -217,6 +168,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
+                // ── ARROW KANAN ────────────────────────────────────────────
                 if (_showArrows && total > 1 && _currentIndex < total - 1)
                   Positioned(
                     right: 10,
@@ -231,6 +183,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
+                // ── DOT INDICATOR ──────────────────────────────────────────
                 if (total > 1)
                   Positioned(
                     bottom: bottomPadding + 80,
@@ -254,6 +207,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                     ),
                   ),
 
+                // ── TOMBOL DOWNLOAD ────────────────────────────────────────
                 Positioned(
                   left: 0,
                   right: 0,
@@ -266,7 +220,69 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                       bottomPadding + 12,
                     ),
                     color: Colors.black54,
-                    child: _isDownloading ? _progress() : _downloadButton(),
+                    child: _isDownloading
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : total > 1
+                        ? Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _downloadImage,
+                                  icon: const Icon(Icons.download, size: 18),
+                                  label: const Text('Halaman ini'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(
+                                      color: Colors.white54,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _downloadAll,
+                                  icon: const Icon(
+                                    Icons.download_for_offline,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Semua halaman'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.bluePrimary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _downloadImage,
+                              icon: const Icon(Icons.download),
+                              label: const Text('Unduh'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.bluePrimary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          ),
                   ),
                 ),
               ],
@@ -274,6 +290,68 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── Builder per item — otomatis pilih PDF atau gambar ─────────────────────
+  Widget _buildItem(String url) {
+    if (_isPdf(url)) {
+      return _PdfItemViewer(url: url);
+    }
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: Center(
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          loadingBuilder: (_, child, progress) {
+            if (progress == null) return child;
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.white54),
+            );
+          },
+          errorBuilder: (_, __, ___) => _placeholder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleItem() {
+    final asset = widget.imageAssetPath ?? '';
+    final url = widget.imageUrl ?? '';
+    if (asset.isNotEmpty) return Image.asset(asset, fit: BoxFit.contain);
+    if (url.isNotEmpty) {
+      if (_isPdf(url)) return _PdfItemViewer(url: url);
+      return InteractiveViewer(
+        minScale: 0.5,
+        maxScale: 4.0,
+        child: Center(
+          child: Image.network(
+            url,
+            fit: BoxFit.contain,
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white54),
+              );
+            },
+            errorBuilder: (_, __, ___) => _placeholder(), // ← ini yang kurang
+          ),
+        ),
+      );
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.insert_drive_file_outlined, size: 70, color: Colors.grey),
+        SizedBox(height: 10),
+        Text('Tidak dapat memuat file', style: TextStyle(color: Colors.grey)),
+      ],
     );
   }
 
@@ -291,86 +369,33 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
       ),
     );
   }
+}
 
-  Widget _downloadButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _downloadImage,
-        icon: const Icon(Icons.download),
-        label: const Text('Unduh ke Galeri'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.bluePrimary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget internal: render satu PDF dari URL menggunakan Syncfusion
+// ─────────────────────────────────────────────────────────────────────────────
+class _PdfItemViewer extends StatelessWidget {
+  final String url;
+  const _PdfItemViewer({required this.url});
 
-  Widget _progress() {
-    final percent = (_downloadProgress * 100).toStringAsFixed(0);
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Mengunduh...', style: TextStyle(color: Colors.white70)),
-            Text('$percent%', style: const TextStyle(color: Colors.white)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: _downloadProgress,
-          backgroundColor: Colors.white24,
-          color: AppColors.bluePrimary,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSingleImage() {
-    final asset = widget.imageAssetPath ?? '';
-    final url = widget.imageUrl ?? '';
-    if (asset.isNotEmpty) return Image.asset(asset, fit: BoxFit.contain);
-    if (url.isNotEmpty) return Image.network(url, fit: BoxFit.contain);
-    return _placeholder();
-  }
-
-  Widget _placeholder() {
-    return const Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.image_not_supported, size: 70, color: Colors.grey),
-        SizedBox(height: 10),
-        Text('Tidak ada gambar', style: TextStyle(color: Colors.grey)),
-      ],
+  @override
+  Widget build(BuildContext context) {
+    return SfPdfViewer.network(
+      url,
+      canShowScrollHead: false,
+      canShowScrollStatus: false,
+      onDocumentLoadFailed: (details) {
+        // error sudah ditangani oleh errorBuilder di bawah
+      },
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SURAT PDF VIEWER
-// Untuk menampilkan surat dalam bentuk PDF yang diupload dari web/desktop.
-//
-// Cara pakai:
-//   Navigator.push(context, MaterialPageRoute(
-//     builder: (_) => SuratPdfViewer(
-//       filePdf: surat['file_pdf'],   // nilai dari response API, misal "sm_1234.pdf"
-//       judul: surat['perihal_surat'],
-//     ),
-//   ));
-//
-// Cara konstruksi URL:
-//   ApiConfig.pdfUrl("sm_1234.pdf") → "http://IP:8080/uploads/sm_1234.pdf"
+// SURAT PDF VIEWER — tetap ada untuk kompatibilitas
 // ─────────────────────────────────────────────────────────────────────────────
-
-class SuratPdfViewer extends StatefulWidget {
-  /// Nama file PDF dari field `file_pdf` response API.
-  /// Contoh: "sm_1748234567890.pdf"
+class SuratPdfViewer extends StatelessWidget {
   final String filePdf;
-
-  /// Judul yang tampil di AppBar, biasanya perihal surat.
   final String judul;
 
   const SuratPdfViewer({
@@ -380,59 +405,7 @@ class SuratPdfViewer extends StatefulWidget {
   });
 
   @override
-  State<SuratPdfViewer> createState() => _SuratPdfViewerState();
-}
-
-class _SuratPdfViewerState extends State<SuratPdfViewer> {
-  String? _localPath;
-  bool _isLoading = true;
-  String? _error;
-  int _totalPages = 0;
-  int _currentPage = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _downloadAndLoad();
-  }
-
-  /// Download PDF dari server ke folder temp, lalu render.
-  /// Kalau file sudah pernah didownload (cache), langsung pakai.
-  Future<void> _downloadAndLoad() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      // Konstruksi URL: baseUrl + /uploads/ + nama_file
-      final url = ApiConfig.pdfUrl(widget.filePdf);
-      final dir = await getTemporaryDirectory();
-      final savePath = '${dir.path}/${widget.filePdf}';
-
-      // Pakai cache kalau sudah ada
-      if (!File(savePath).existsSync()) {
-        await Dio().download(url, savePath);
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _localPath = savePath;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Gagal memuat surat.\nPeriksa koneksi dan coba lagi.';
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
     return Scaffold(
       backgroundColor: Colors.grey.shade900,
       appBar: AppBar(
@@ -440,110 +413,16 @@ class _SuratPdfViewerState extends State<SuratPdfViewer> {
         foregroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          widget.judul,
+          judul,
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           overflow: TextOverflow.ellipsis,
         ),
-        actions: [
-          if (_totalPages > 0)
-            Padding(
-              padding: EdgeInsets.only(
-                right: 16,
-                bottom: bottomPadding > 0 ? 0 : 0,
-              ),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_currentPage + 1} / $_totalPages',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: AppColors.bluePrimary),
-                  SizedBox(height: 16),
-                  Text(
-                    'Memuat surat...',
-                    style: TextStyle(color: Colors.white54, fontSize: 14),
-                  ),
-                ],
-              ),
-            )
-          : _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.redAccent,
-                      size: 52,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: _downloadAndLoad,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Coba Lagi'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.bluePrimary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : PDFView(
-              filePath: _localPath!,
-              enableSwipe: true,
-              swipeHorizontal: false,
-              autoSpacing: true,
-              pageFling: true,
-              backgroundColor: Colors.grey.shade900,
-              onRender: (pages) {
-                if (mounted) setState(() => _totalPages = pages ?? 0);
-              },
-              onPageChanged: (page, total) {
-                if (mounted) setState(() => _currentPage = page ?? 0);
-              },
-              onError: (e) {
-                if (mounted) setState(() => _error = 'Gagal membuka PDF: $e');
-              },
-              onPageError: (page, e) {
-                if (mounted) setState(() => _error = 'Error halaman $page: $e');
-              },
-            ),
+      body: SfPdfViewer.network(
+        filePdf,
+        canShowScrollHead: true,
+        canShowScrollStatus: true,
+      ),
     );
   }
 }

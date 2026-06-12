@@ -1,34 +1,36 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
-import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_keluar_repository.dart';
 
-class InputSuratKeluar extends StatefulWidget {
+import 'package:ta_mobile_disposisi_surat/features/tata_usaha/pages/hasil_pengajuan_surat_keluar_page.dart'
+    show OutputSuratkeluar;
+
+import '../../../core/network/api_client.dart';
+
+// Kepsek version: review surat keluar (terima / tolak)
+class InputSuratKeluarKepsek extends StatefulWidget {
   final Map<String, dynamic> surat;
-  const InputSuratKeluar({super.key, required this.surat});
+  const InputSuratKeluarKepsek({super.key, required this.surat});
 
   @override
-  State<InputSuratKeluar> createState() => _InputSuratKeluarState();
+  State<InputSuratKeluarKepsek> createState() => _InputSuratKeluarKepsekState();
 }
 
-class _InputSuratKeluarState extends State<InputSuratKeluar> {
+class _InputSuratKeluarKepsekState extends State<InputSuratKeluarKepsek> {
+  final _suratKeluarRepo = SuratKeluarRepository();
+  bool _isSubmitting = false;
+
   Map<String, dynamic> get _suratData => widget.surat['data'] ?? widget.surat;
   List<String> get _lampiranUrls =>
       List<String>.from(widget.surat['lampiran'] ?? []);
 
-  /// Controller untuk input catatan disposisi surat keluar.
   final TextEditingController catatanController = TextEditingController();
-
-  /// Mengatur scroll saat perlu menyorot field yang error.
   final ScrollController _scrollController = ScrollController();
-
-  /// Penanda posisi field catatan untuk auto-scroll validasi.
   final GlobalKey _catatanKey = GlobalKey();
-
-  /// Menyimpan pesan error pada field catatan.
   String? catatanError;
 
-  /// Membersihkan controller ketika widget dihancurkan.
   @override
   void dispose() {
     _scrollController.dispose();
@@ -36,14 +38,12 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     super.dispose();
   }
 
-  /// Validasi form sebelum aksi terima/tolak diproses.
   bool _validate({required bool isApproved}) {
     catatanError = null;
     bool hasError = false;
 
     final text = catatanController.text.trim();
 
-    // Catatan wajib diisi ketika surat ditolak.
     if (!isApproved && text.isEmpty) {
       catatanError = "Catatan wajib diisi.";
       hasError = true;
@@ -58,7 +58,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     return !hasError;
   }
 
-  /// Menggeser viewport ke field target saat validasi gagal.
   void _scrollToField(GlobalKey key) {
     final context = key.currentContext;
 
@@ -72,118 +71,164 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     }
   }
 
-  /// Menampilkan konfirmasi akhir untuk aksi terima atau tolak.
   void _showConfirmDialog(BuildContext context, {required bool isApproved}) {
     showDialog(
       context: context,
+      barrierDismissible: !_isSubmitting,
       barrierColor: Colors.black.withValues(alpha: 0.3),
-      builder: (_) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // TITLE
-                Text(
-                  isApproved ? "Terima Surat" : "Tolak Surat",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                // MESSAGE
-                Text(
-                  isApproved
-                      ? "Apakah Anda yakin ingin menerima surat ini?"
-                      : "Apakah Anda yakin ingin menolak surat ini?",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    height: 1.4,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // BUTTONS
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      height: 36,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade600,
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                        ),
-                        child: const Text("Batal"),
+                    Text(
+                      isApproved ? "Terima Surat" : "Tolak Surat",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
                       ),
                     ),
-
-                    const SizedBox(width: 10),
-
-                    SizedBox(
-                      height: 36,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context); // tutup dialog
-                          Navigator.pop(
-                            context,
-                          ); // kembali ke halaman sebelumnya
-                        },
-                        style: ElevatedButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: isApproved
-                              ? const Color(0xFF22C55E)
-                              : const Color(0xFFEF4444),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                        ),
-                        child: const Text(
-                          "Yakin",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                    const SizedBox(height: 10),
+                    Text(
+                      isApproved
+                          ? "Apakah Anda yakin ingin menerima surat ini?"
+                          : "Apakah Anda yakin ingin menolak surat ini?",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                        height: 1.4,
                       ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        SizedBox(
+                          height: 36,
+                          child: OutlinedButton(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => Navigator.pop(dialogCtx),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey.shade600,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                              ),
+                            ),
+                            child: const Text("Batal"),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          height: 36,
+                          child: ElevatedButton(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () async {
+                                    setDialogState(() => _isSubmitting = true);
+                                    await _submitDisposisi(
+                                      dialogCtx: dialogCtx,
+                                      isApproved: isApproved,
+                                    );
+                                    setDialogState(() => _isSubmitting = false);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: isApproved
+                                  ? const Color(0xFF22C55E)
+                                  : const Color(0xFFEF4444),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                              ),
+                            ),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Yakin",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
+  Future<void> _submitDisposisi({
+    required BuildContext dialogCtx,
+    required bool isApproved,
+  }) async {
+    final raw = widget.surat['_raw'];
+    if (raw == null) return;
+
+    try {
+      await _suratKeluarRepo.review(
+        raw.id,
+        isApproved: isApproved,
+        catatan: catatanController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pop(dialogCtx);
+
+      Navigator.pop(context, {
+        'action': isApproved ? 'approved' : 'rejected',
+        'id': raw.id,
+        'jenisSurat': 'Surat Keluar',
+      });
+    } on DioException catch (e) {
+      if (!mounted) return;
+      Navigator.pop(dialogCtx);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(parseError(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-
     final w = size.width;
     final h = size.height;
 
-    /// Helper skala responsif untuk ukuran elemen UI.
     double rf(double size) {
       return (w * (size / 375)).clamp(size * 0.9, size * 1.15);
     }
@@ -194,7 +239,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header halaman detail surat keluar.
             Padding(
               padding: EdgeInsets.fromLTRB(w * 0.05, h * 0.025, w * 0.05, 0),
               child: Row(
@@ -207,9 +251,7 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                       size: 20,
                     ),
                   ),
-
                   SizedBox(width: w * 0.02),
-
                   const Expanded(
                     child: Text(
                       "Detail Surat Keluar",
@@ -224,9 +266,7 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                 ],
               ),
             ),
-
             SizedBox(height: h * 0.025),
-            // Konten halaman yang dapat di-scroll.
             Expanded(
               child: SingleChildScrollView(
                 controller: _scrollController,
@@ -234,15 +274,10 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Kartu ringkasan informasi surat.
                     _detailCard(context),
                     const SizedBox(height: 20),
-
-                    // Form input catatan disposisi.
                     _formDisposisi(),
                     const SizedBox(height: 20),
-
-                    // Tombol aksi terima dan tolak.
                     Row(
                       children: [
                         Expanded(
@@ -262,9 +297,7 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                             ),
                             onPressed: () {
                               final isValid = _validate(isApproved: true);
-
                               if (!isValid) return;
-
                               _showConfirmDialog(context, isApproved: true);
                             },
                           ),
@@ -287,16 +320,13 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                             ),
                             onPressed: () {
                               final isValid = _validate(isApproved: false);
-
                               if (!isValid) return;
-
                               _showConfirmDialog(context, isApproved: false);
                             },
                           ),
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 30),
                   ],
                 ),
@@ -308,7 +338,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     );
   }
 
-  /// Menampilkan detail surat keluar dan ringkasan lampiran.
   Widget _detailCard(BuildContext context) {
     return Card(
       elevation: 3,
@@ -420,7 +449,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     );
   }
 
-  /// Item detail dengan ikon, label, dan nilai informasi.
   Widget _detailItem(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -461,7 +489,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     );
   }
 
-  /// Form disposisi untuk input catatan.
   Widget _formDisposisi() {
     return _sectionCard(
       title: "Catatan",
@@ -475,7 +502,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
                 hint: "Masukkan catatan...",
                 controller: catatanController,
               ),
-
               if (catatanError != null)
                 Transform.translate(
                   offset: const Offset(0, -6),
@@ -498,7 +524,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     );
   }
 
-  /// Kartu section reusable untuk pengelompokan komponen form.
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return Container(
       width: double.infinity,
@@ -544,7 +569,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
     );
   }
 
-  /// Text field reusable untuk input teks disposisi.
   Widget _textField({required String hint, TextEditingController? controller}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -570,126 +594,6 @@ class _InputSuratKeluarState extends State<InputSuratKeluar> {
             borderSide: BorderSide(color: AppColors.orangePrimary, width: 1.5),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Widget carousel untuk menampilkan banyak lampiran gambar.
-class _AttachmentCarousel extends StatefulWidget {
-  const _AttachmentCarousel({required this.attachmentUrls});
-  final List<String> attachmentUrls;
-
-  @override
-  State<_AttachmentCarousel> createState() => _AttachmentCarouselState();
-}
-
-class _AttachmentCarouselState extends State<_AttachmentCarousel> {
-  /// Controller perpindahan halaman pada carousel.
-  late final PageController _pageController;
-
-  /// Index halaman lampiran yang sedang aktif.
-  int _currentIndex = 0;
-
-  /// Inisialisasi page controller carousel.
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(viewportFraction: 0.92);
-  }
-
-  /// Membersihkan page controller saat widget dilepas.
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  /// Menyusun tampilan carousel lampiran dan indikator halaman.
-  @override
-  Widget build(BuildContext context) {
-    final attachmentUrls = widget.attachmentUrls;
-
-    return SizedBox(
-      height: 230,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            itemCount: attachmentUrls.length,
-            onPageChanged: (index) => setState(() => _currentIndex = index),
-            itemBuilder: (context, index) {
-              final path = attachmentUrls[index];
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => FullScreenImageViewer(
-                          imageAssetPath: path,
-                          imageUrls: attachmentUrls,
-                          initialIndex: index,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Image.asset(
-                        path,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.broken_image_rounded,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                              SizedBox(height: 10),
-                              Text("Gagal memuat gambar"),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          Positioned(
-            bottom: 12,
-            child: Row(
-              children: List.generate(attachmentUrls.length, (index) {
-                final isActive = _currentIndex == index;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: isActive ? 18 : 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    color: isActive
-                        ? AppColors.orangePrimary
-                        : Colors.grey.shade400,
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
       ),
     );
   }

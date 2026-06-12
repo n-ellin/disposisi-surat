@@ -3,29 +3,28 @@ import 'package:ta_mobile_disposisi_surat/core/constants/notification_template.d
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
-//import 'package:ta_mobile_disposisi_surat/data/repositories/surat_repository.dart';
-
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+import 'package:ta_mobile_disposisi_surat/core/constants/session.dart';
+// import removed: dummy data no longer used
+import 'package:ta_mobile_disposisi_surat/core/repositories/notification_repository.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 import 'package:ta_mobile_disposisi_surat/features/notifications/notification_page.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
-
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
 import 'package:ta_mobile_disposisi_surat/features/users/pages/user/detail_surat_user.dart';
 import 'package:ta_mobile_disposisi_surat/features/users/pages/waka/detail_surat_waka.dart';
 
 class MenuUser extends StatefulWidget {
   final String nama;
   final String email;
-  final String jabatan;
   final Role role;
 
   const MenuUser({
     super.key,
     required this.nama,
     required this.email,
-    required this.jabatan,
     required this.role,
+    required String jabatan,
   });
 
   @override
@@ -33,38 +32,56 @@ class MenuUser extends StatefulWidget {
 }
 
 class _MenuUserState extends State<MenuUser> {
+  final _suratMasukRepo = SuratMasukRepository();
   String searchQuery = '';
-  late List<Map<String, dynamic>> notifications;
+
+  final _notifRepo = NotificationRepository();
+  List<Map<String, dynamic>> notifications = [];
+  bool _isLoadingNotif = true;
 
   List<Map<String, dynamic>> _suratList = [];
   bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    notifications = List.from(notifUser);
     _loadData();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final result = await _notifRepo.getList();
+      if (!mounted) return;
+      setState(() {
+        notifications = result;
+        _isLoadingNotif = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingNotif = false;
+        notifications = [];
+      });
+    }
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
-    print('ROLE: ${widget.role}');
-    print('JABATAN: "${widget.jabatan}"');
-
-    setState(() {
-      _suratList = SuratDummy.suratUntukRole(
-        widget.role,
-        jabatan: widget.jabatan,
-      );
-
-      print(_suratList);
-
-      _isLoading = false;
-    });
+    try {
+    final result = await _suratMasukRepo.getList();
+      if (!mounted) return;
+      setState(() {
+        _suratList = result.map((s) => s.toMenuMap()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _suratList = [];
+        _isLoading = false;
+      });
+    }
   }
 
   DateTime _parseDate(String tanggal) {
@@ -85,7 +102,6 @@ class _MenuUserState extends State<MenuUser> {
 
     try {
       final parts = tanggal.trim().split(' ');
-
       return DateTime(
         int.parse(parts[2]),
         bulan[parts[1]]!,
@@ -101,16 +117,11 @@ class _MenuUserState extends State<MenuUser> {
 
     if (searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
-
       result = result.where((surat) {
         final jenis = surat['jenisSurat'].toString().toLowerCase();
-
         final tanggal = surat['tanggal'].toString().toLowerCase();
-
         final status = surat['status'].toString().toLowerCase();
-
         final dari = (surat['data']?['Dari'] ?? '').toString().toLowerCase();
-
         final perihal = (surat['data']?['Perihal'] ?? '')
             .toString()
             .toLowerCase();
@@ -125,9 +136,7 @@ class _MenuUserState extends State<MenuUser> {
 
     result.sort((a, b) {
       final dateA = _parseDate(a['tanggal']?.toString() ?? '');
-
       final dateB = _parseDate(b['tanggal']?.toString() ?? '');
-
       return dateB.compareTo(dateA);
     });
 
@@ -140,18 +149,24 @@ class _MenuUserState extends State<MenuUser> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            NotificationPage(role: widget.role, notifications: notifications),
+        builder: (_) => NotificationPage(
+          role: widget.role, // ✅ hapus notifications:
+        ),
       ),
     );
-    setState(() {
-      for (var notif in notifications) {
-        notif['isRead'] = true;
-      }
-    });
+
+    try {
+      await _notifRepo.markAllRead();
+      await _loadNotifications();
+    } catch (e) {
+      setState(() {
+        for (var notif in notifications) {
+          notif['isRead'] = true;
+        }
+      });
+    }
   }
 
-  /// Label judul halaman sesuai role
   String get _pageTitle {
     return widget.role == Role.waka ? 'Disposisi Masuk' : 'Disposisi Surat';
   }
@@ -160,7 +175,6 @@ class _MenuUserState extends State<MenuUser> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final h = screenSize.height;
-
     final w = screenSize.width > 500 ? 500.0 : screenSize.width;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
@@ -171,6 +185,7 @@ class _MenuUserState extends State<MenuUser> {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     return Scaffold(
       backgroundColor: AppColors.bg,
 
@@ -197,7 +212,7 @@ class _MenuUserState extends State<MenuUser> {
                   widget.role,
                   widget.nama,
                   widget.email,
-                  widget.jabatan,
+                  Session.jabatan,
                 );
               },
             ),
@@ -215,13 +230,12 @@ class _MenuUserState extends State<MenuUser> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 500),
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(height: (h * 0.03).clamp(16.0, 32.0)),
 
-                  /// Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -351,12 +365,8 @@ class _MenuUserState extends State<MenuUser> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) => widget.role == Role.waka
-                                            ? DetailSuratWaka(
-                                                surat: surat,
-                                              ) // ← waka pakai ini
-                                            : DetailSuratUsers(
-                                                surat: surat,
-                                              ), // ← user pakai ini
+                                            ? DetailSuratWaka(surat: surat)
+                                            : DetailSuratUsers(surat: surat),
                                       ),
                                     );
                                   },

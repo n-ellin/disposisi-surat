@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
+
+import '../../../../core/network/api_client.dart';
 
 class DetailSuratUsers extends StatefulWidget {
   final Map<String, dynamic> surat;
@@ -16,33 +19,66 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // DATA SURAT
   // =========================================================
 
-  /// Shortcut data utama surat dari payload backend.
   Map<String, dynamic> get _suratData => widget.surat['data'] ?? {};
 
-  /// List URL lampiran surat.
   List<String> get _attachmentUrls =>
       List<String>.from(widget.surat['lampiran'] ?? []);
 
-  /// Catatan dari Kepsek (read-only, tampil jika tidak kosong).
-  ///
-  /// TODO: Sesuaikan key dengan response API backend.
-  String get _catatanWaka =>
-      widget.surat['catatanWaka']?.toString().trim() ?? '';
+  /// ✅ FIX: coba semua kemungkinan key yang mungkin dikirim dari API/caller
+  String get _catatanWaka {
+    final keys = [
+      'catatan_waka',
+      'catatanWaka',
+      'catatan_verifikasi',
+      'catatanVerifikasi',
+      'catatan',
+      'notes',
+      'note',
+    ];
+    for (final key in keys) {
+      final val = widget.surat[key]?.toString().trim() ?? '';
+      if (val.isNotEmpty) return val;
+    }
+    return '';
+  }
+
+  /// ✅ FIX: nama waka dengan fallback semua kemungkinan key
+  String get _namaWaka {
+    final keys = [
+      'nama_waka',
+      'namaWaka',
+      'waka_nama',
+      'jabatan_waka',
+      'jabatanWaka',
+    ];
+    for (final key in keys) {
+      final val = widget.surat[key]?.toString().trim() ?? '';
+      if (val.isNotEmpty) return val;
+    }
+    return '';
+  }
 
   // =========================================================
   // RESPONSIVE HELPER
   // =========================================================
-
-  /// Responsive font/helper scaling berdasarkan width device.
   double rf(BuildContext context, double size) {
     final width = MediaQuery.of(context).size.width;
     return size * (width / 375);
   }
 
   // =========================================================
+  // DEBUG: print semua key yang ada di surat (hapus di production)
+  // =========================================================
+  @override
+  void initState() {
+    super.initState();
+    debugPrint('=== DetailSuratUsers keys: ${widget.surat.keys.toList()}');
+    debugPrint('=== DetailSuratUsers full data: ${widget.surat}');
+  }
+
+  // =========================================================
   // MAIN UI
   // =========================================================
-
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width;
@@ -53,9 +89,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header fixed (tidak ikut scroll)
             _buildHeader(context, w, h),
-            // Konten scrollable
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: w * 0.05),
@@ -68,12 +102,11 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
 
                     SizedBox(height: h * 0.02),
 
-                    // Catatan kepsek ditampilkan untuk semua penerima
-                    // (waka, guru, staff, dll) jika ada isinya.
-                    if (_catatanWaka.isNotEmpty) ...[
-                      _buildCatatan(context, w, h),
-                      SizedBox(height: h * 0.02),
-                    ],
+                    // ✅ Catatan waka — selalu tampil section-nya,
+                    //    isi "-" kalau kosong agar user tahu field ini ada
+                    _buildCatatan(context, w, h),
+
+                    SizedBox(height: h * 0.025),
 
                     Align(
                       alignment: Alignment.centerRight,
@@ -94,8 +127,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // =========================================================
   // HEADER
   // =========================================================
-
-  /// Header halaman detail surat.
   Widget _buildHeader(BuildContext context, double w, double h) {
     return Padding(
       padding: EdgeInsets.only(top: h * 0.025, left: w * 0.05, right: w * 0.05),
@@ -109,9 +140,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
               size: rf(context, 20),
             ),
           ),
-
           SizedBox(width: w * 0.02),
-
           Expanded(
             child: Text(
               'Detail Surat Masuk',
@@ -131,8 +160,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // =========================================================
   // DETAIL CARD
   // =========================================================
-
-  /// Card utama yang menampilkan informasi surat.
   Widget _buildDetailCard(BuildContext context, double w, double h) {
     return Container(
       width: double.infinity,
@@ -145,30 +172,39 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
             context,
             icon: Icons.description_outlined,
             label: 'Nomor Surat',
-            value: _suratData['Nomor Surat'] ?? '-',
+            value:
+                _suratData['Nomor Surat'] ??
+                _suratData['No Surat'] ??
+                widget.surat['no_surat']?.toString() ??
+                '-',
           ),
-
           _detailItem(
             context,
             icon: Icons.calendar_today_outlined,
             label: 'Tanggal',
             value: widget.surat['tanggal'] ?? '-',
           ),
-
           _detailItem(
             context,
             icon: Icons.person_outline,
             label: 'Pengirim',
-            value: _suratData['Dari'] ?? '-',
+            value:
+                _suratData['Dari'] ??
+                _suratData['Pengirim'] ??
+                widget.surat['asal_surat']?.toString() ??
+                '-',
           ),
-
           _detailItem(
             context,
             icon: Icons.notes,
             label: 'Perihal',
-            value: _suratData['Perihal'] ?? '-',
+            value:
+                _suratData['Perihal'] ??
+                widget.surat['perihal']?.toString() ??
+                '-',
           ),
 
+          // Lampiran
           Text(
             'Lampiran',
             style: TextStyle(
@@ -177,9 +213,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
               fontWeight: FontWeight.w600,
             ),
           ),
-
           SizedBox(height: h * 0.01),
-
           if (_attachmentUrls.isEmpty)
             Text(
               'Tidak ada lampiran',
@@ -196,18 +230,16 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   }
 
   // =========================================================
-  // CATATAN KEPSEK
+  // CATATAN WAKA — ✅ selalu render, isi "-" kalau kosong
   // =========================================================
-
-  /// Card catatan dari Kepala Sekolah — read-only untuk semua penerima.
-  ///
-  /// Hanya ditampilkan jika [_catatanKepsek] tidak kosong.
   Widget _buildCatatan(BuildContext context, double w, double h) {
+    final catatan = _catatanWaka.isEmpty ? '-' : _catatanWaka;
+    final namaWaka = _namaWaka;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(rf(context, 20)),
       decoration: BoxDecoration(
-        // Warna sedikit berbeda agar secara visual jelas ini read-only
         color: AppColors.bluePrimary.withOpacity(0.04),
         borderRadius: BorderRadius.circular(rf(context, 14)),
         border: Border.all(color: AppColors.bluePrimary.withOpacity(0.15)),
@@ -215,6 +247,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Title row
           Row(
             children: [
               Icon(
@@ -234,10 +267,24 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
             ],
           ),
 
+          // Nama waka (kalau ada)
+          if (namaWaka.isNotEmpty) ...[
+            SizedBox(height: h * 0.008),
+            Text(
+              namaWaka,
+              style: TextStyle(
+                fontSize: rf(context, 12),
+                fontWeight: FontWeight.w600,
+                color: AppColors.bluePrimary.withOpacity(0.7),
+              ),
+            ),
+          ],
+
           SizedBox(height: h * 0.012),
 
+          // Isi catatan
           Text(
-            _catatanWaka.isEmpty ? '-' : _catatanWaka,
+            catatan,
             style: TextStyle(
               fontSize: rf(context, 14),
               color: Colors.grey.shade700,
@@ -250,31 +297,58 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   }
 
   // =========================================================
-  // BUTTONS
+  // TOMBOL KONFIRMASI
   // =========================================================
-
-  /// Tombol konfirmasi surat — sama untuk semua penerima.
   Widget _buildTombolKonfirmasi(BuildContext context, double w) {
     return ElevatedButton(
       style: _buttonStyle(context),
-      onPressed: () {
-        _showSuccessDialog(context, 'Konfirmasi berhasil dikirim.');
+      onPressed: () async {
+        // Ambil disposisi_id yang sudah di-pass via surat map
+        final disposisiId = widget.surat['disposisi_id'] as int?;
+
+        if (disposisiId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ID disposisi tidak ditemukan')),
+          );
+          return;
+        }
+
+        try {
+          // FIX: PUT /api/disposisi/{disposisi_id}/confirm
+          // Pakai ApiClient.dio (bukan ApiClient()) agar JWT ikut terkirim
+          final response = await ApiClient.dio.put(
+            '/api/disposisi/$disposisiId/confirm',
+          );
+
+          if (response.data['success'] == true) {
+            _showSuccessDialog(context, 'Konfirmasi berhasil dikirim.');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(response.data['message'] ?? 'Gagal konfirmasi'),
+              ),
+            );
+          }
+        } on DioException catch (e) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(parseError(e))));
+        }
       },
       child: Text(
         'Konfirmasi',
         style: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: rf(context, 14),
+          color: Colors.white,
         ),
       ),
     );
   }
 
   // =========================================================
-  // FEEDBACK UI
+  // SUCCESS DIALOG
   // =========================================================
-
-  /// Dialog reusable untuk feedback sukses.
   void _showSuccessDialog(BuildContext context, String message) {
     showDialog(
       context: context,
@@ -312,12 +386,8 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   }
 
   // =========================================================
-  // LAMPIRAN
+  // LAMPIRAN TILE
   // =========================================================
-
-  /// Tile lampiran surat.
-  ///
-  /// Ketika ditekan akan membuka full screen viewer.
   Widget _buildLampiranTile(BuildContext context, double w) {
     return GestureDetector(
       onTap: () {
@@ -348,9 +418,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
               color: AppColors.bluePrimary,
               size: rf(context, 20),
             ),
-
             SizedBox(width: w * 0.025),
-
             Expanded(
               child: Text(
                 '${_attachmentUrls.length} File Lampiran',
@@ -361,7 +429,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
                 ),
               ),
             ),
-
             Icon(
               Icons.remove_red_eye_outlined,
               color: Colors.grey.shade500,
@@ -376,8 +443,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // =========================================================
   // STYLES
   // =========================================================
-
-  /// Decoration reusable untuk seluruh card section.
   BoxDecoration _cardDecoration(BuildContext context) {
     return BoxDecoration(
       color: Colors.white,
@@ -392,7 +457,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
     );
   }
 
-  /// Style reusable untuk button utama.
   ButtonStyle _buttonStyle(BuildContext context) {
     return ElevatedButton.styleFrom(
       backgroundColor: AppColors.bluePrimary,
@@ -411,9 +475,6 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
   // =========================================================
   // DETAIL ITEM
   // =========================================================
-
-  /// Widget reusable untuk menampilkan
-  /// label + value informasi surat.
   Widget _detailItem(
     BuildContext context, {
     required IconData icon,
@@ -435,9 +496,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
               size: rf(context, 24),
             ),
           ),
-
           SizedBox(width: w * 0.04),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,9 +509,7 @@ class _DetailSuratUsersState extends State<DetailSuratUsers> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-
                 SizedBox(height: rf(context, 4)),
-
                 Text(
                   value,
                   style: TextStyle(

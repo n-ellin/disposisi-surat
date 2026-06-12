@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
+import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_keluar_repository.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_masuk.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_keluar.dart';
 
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
 
 import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/disposisi_suratmasuk.dart';
-import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/pengajuan_suratkeluar.dart';
+import 'package:ta_mobile_disposisi_surat/features/kepsek/pages/pengajuan_suratkeluar.dart'
+    show InputSuratKeluarKepsek;
 
 class KepsekDashboardPage extends StatefulWidget {
   final String jenisSurat;
-
   const KepsekDashboardPage({super.key, required this.jenisSurat});
 
   @override
@@ -18,8 +23,12 @@ class KepsekDashboardPage extends StatefulWidget {
 }
 
 class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
+  final _suratMasukRepo = SuratMasukRepository();
+  final _suratKeluarRepo = SuratKeluarRepository();
+
   List<Map<String, dynamic>> _suratList = [];
   bool _isLoading = true;
+  String? _error;
   String _searchQuery = '';
 
   @override
@@ -28,20 +37,106 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
     _fetchSurat();
   }
 
+  String _formatTanggal(String rawDate) {
+    try {
+      final dt = DateTime.parse(rawDate);
+      const months = [
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'Mei',
+        'Jun',
+        'Jul',
+        'Agu',
+        'Sep',
+        'Okt',
+        'Nov',
+        'Des',
+      ];
+      return '${dt.day.toString().padLeft(2, '0')} ${months[dt.month]} ${dt.year}';
+    } catch (_) {
+      return rawDate;
+    }
+  }
+
+  // Kepsek hanya lihat surat yang BELUM diproses (menunggu keputusannya)
+  bool _isKepsekDone(SuratMasuk s) {
+    final statusAlur = s.statusAlur?.toLowerCase() ?? '';
+    // Sembunyikan kalau sudah melewati tahap kepsek
+    return statusAlur == 'dikirim_ke_waka' ||
+        statusAlur == 'dikirim_ke_user' ||
+        statusAlur == 'didistribusikan_user' ||
+        statusAlur == 'selesai';
+  }
+
+  bool _isKepsekDoneKeluar(SuratKeluar s) {
+    final status = s.status.toLowerCase();
+    return status == 'disetujui' || status == 'ditolak' || status == 'selesai';
+  }
+
   Future<void> _fetchSurat() async {
-    setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(milliseconds: 300));
-
     if (!mounted) return;
-
     setState(() {
-      _suratList = widget.jenisSurat == 'Surat Masuk'
-          ? List<Map<String, dynamic>>.from(SuratDummy.masuk)
-          : List<Map<String, dynamic>>.from(SuratDummy.keluar);
-
-      _isLoading = false;
+      _isLoading = true;
+      _error = null;
     });
+
+    try {
+      if (widget.jenisSurat == 'Surat Masuk') {
+        final list = await _suratMasukRepo.getList();
+        if (!mounted) return;
+        setState(() {
+          _suratList = list
+              .where((s) => !_isKepsekDone(s))
+              .map(
+                (s) => {
+                  'jenisSurat': 'Surat Masuk',
+                  'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+                  'status': s.status,
+                  'data': {
+                    'No Surat': s.noSurat,
+                    'Perihal': s.perihal,
+                    'Dari': s.asalSurat,
+                  },
+                  'lampiran': s.lampiranUrls.isNotEmpty
+                      ? s.lampiranUrls
+                      : (s.previewUrl.isNotEmpty ? [s.previewUrl] : <String>[]),
+                  '_raw': s,
+                },
+              )
+              .toList();
+        });
+      } else {
+        final list = await _suratKeluarRepo.getList();
+        if (!mounted) return;
+        setState(() {
+          _suratList = list
+              .where((s) => !_isKepsekDoneKeluar(s))
+              .map(
+                (s) => {
+                  'jenisSurat': 'Surat Keluar',
+                  'tanggal': _formatTanggal(s.createdAt.toIso8601String()),
+                  'status': s.status,
+                  'data': {
+                    'No Surat': s.noSurat,
+                    'Perihal': s.perihal,
+                    'Dari': s.tujuan,
+                  },
+                  'lampiran': s.lampiranUrls ?? <String>[],
+                  '_raw': s,
+                },
+              )
+              .toList();
+        });
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = parseError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   DateTime _parseDate(String tanggal) {
@@ -59,13 +154,11 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
       'Nov': 11,
       'Des': 12,
     };
-
     try {
       final parts = tanggal.trim().split(' ');
-
       return DateTime(
         int.parse(parts[2]),
-        bulan[parts[1]]!,
+        bulan[parts[1]] ?? 1,
         int.parse(parts[0]),
       );
     } catch (_) {
@@ -75,32 +168,38 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
 
   List<Map<String, dynamic>> get _filteredSurat {
     List<Map<String, dynamic>> result = [..._suratList];
-
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
-
       result = result.where((s) {
         final tanggal = (s['tanggal'] ?? '').toString().toLowerCase();
-
         final dari = (s['data']?['Dari'] ?? '').toString().toLowerCase();
-
         final perihal = (s['data']?['Perihal'] ?? '').toString().toLowerCase();
-
         return tanggal.contains(query) ||
             dari.contains(query) ||
             perihal.contains(query);
       }).toList();
     }
-
     result.sort((a, b) {
-      final dateA = _parseDate(a['tanggal']?.toString() ?? '');
-
-      final dateB = _parseDate(b['tanggal']?.toString() ?? '');
-
+      final dateA = _parseDate(a['tanggal'] ?? '');
+      final dateB = _parseDate(b['tanggal'] ?? '');
       return dateB.compareTo(dateA);
     });
-
     return result;
+  }
+
+  void _openDetail(Map<String, dynamic> surat) async {
+    final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => isMasuk
+            ? InputSuratMasuk(surat: surat)
+            : InputSuratKeluarKepsek(surat: surat),
+      ),
+    );
+    if (result != null && result is Map<String, dynamic>) {
+      _fetchSurat();
+    }
   }
 
   @override
@@ -148,19 +247,11 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             SizedBox(height: h * 0.015),
-
             SearchBarInput(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
+              onChanged: (value) => setState(() => _searchQuery = value),
             ),
-
             SizedBox(height: h * 0.015),
-
             Expanded(child: _buildBody(w, h)),
           ],
         ),
@@ -169,6 +260,29 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
   }
 
   Widget _buildBody(double w, double h) {
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: _fetchSurat,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_filteredSurat.isEmpty) {
       return Center(
         child: Text(
@@ -178,45 +292,27 @@ class _KepsekDashboardPageState extends State<KepsekDashboardPage> {
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.only(bottom: h * 0.03),
-      itemCount: _filteredSurat.length,
-      itemBuilder: (context, index) {
-        final surat = _filteredSurat[index];
-
-        final isMasuk = widget.jenisSurat == 'Surat Masuk';
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: h * 0.01),
-          child: SuratCard(
-            jenisSurat: widget.jenisSurat,
-            tanggal: surat['tanggal']?.toString() ?? '-',
-            status: surat['status']?.toString(),
-
-            data: {
-              'No Surat': surat['data']?['No. Surat']?.toString() ?? '-',
-
-              'Perihal': surat['data']?['Perihal']?.toString() ?? '-',
-
-              'Dari': surat['data']?['Dari']?.toString() ?? '-',
-            },
-
-            role: CardRole.kepsek,
-            type: CardType.menu,
-
-            onDetail: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => isMasuk
-                      ? InputSuratMasuk(surat: surat)
-                      : InputSuratKeluar(surat: surat),
-                ),
-              );
-            },
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _fetchSurat,
+      child: ListView.builder(
+        padding: EdgeInsets.only(bottom: h * 0.03),
+        itemCount: _filteredSurat.length,
+        itemBuilder: (context, index) {
+          final surat = _filteredSurat[index];
+          return Padding(
+            padding: EdgeInsets.only(bottom: h * 0.01),
+            child: SuratCard(
+              jenisSurat: surat['jenisSurat'].toString(),
+              tanggal: surat['tanggal'].toString(),
+              status: surat['status']?.toString(),
+              data: Map<String, String>.from(surat['data']),
+              role: CardRole.kepsek,
+              type: CardType.menu,
+              onDetail: () => _openDetail(surat),
+            ),
+          );
+        },
+      ),
     );
   }
 }

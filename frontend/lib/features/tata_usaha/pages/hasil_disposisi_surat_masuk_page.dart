@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
+import 'package:ta_mobile_disposisi_surat/core/models/surat_masuk.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
 import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
-
-// ── MAIN WIDGET ───────────────────────────────────────────────────────────────
 
 class OutputSuratmasuk extends StatefulWidget {
   final bool isApproved;
   final String catatan;
-  final String jabatanWaka;
+  final List<Map<String, dynamic>> wakaList;
   final bool isReadOnly;
   final List<String> lampiranUrls;
+  final int suratId;
   final bool showWaka;
+
+  final String? namaWaka;
+  final String? jabatanWaka;
 
   const OutputSuratmasuk({
     super.key,
     required this.isApproved,
     required this.catatan,
-    required this.jabatanWaka,
+    required this.wakaList,
+    required this.suratId,
     this.isReadOnly = false,
     this.lampiranUrls = const [],
     this.showWaka = true,
+    this.namaWaka,
+    this.jabatanWaka,
   });
 
   @override
@@ -27,22 +34,77 @@ class OutputSuratmasuk extends StatefulWidget {
 }
 
 class _OutputSuratmasukState extends State<OutputSuratmasuk> {
+  int? _selectedWakaID;
+  SuratMasuk? _surat;
+  bool _loading = true;
+
   double rf(double size, double w) {
     return (w * (size / 375)).clamp(size * 0.9, size * 1.2);
   }
 
-  /// Jabatan Waka yang dipilih (untuk mode edit).
-  String? _selectedWaka;
+  Future<void> _onSubmit() async {
+    if (widget.showWaka && _selectedWakaID == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Pilih waka terlebih dahulu")),
+      );
+      return;
+    }
+
+    try {
+      if (widget.showWaka) {
+        await SuratMasukRepository().disposisi(
+          widget.suratId,
+          wakaId: _selectedWakaID!,
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Gagal: $e")));
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _selectedWaka = widget.jabatanWaka.isNotEmpty ? widget.jabatanWaka : null;
+    _loadData();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  Future<void> _loadData() async {
+    try {
+      final res = await SuratMasukRepository().getDetail(widget.suratId);
+
+      setState(() {
+        _surat = res;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  void _bukaLampiran() {
+    // Prioritaskan lampiranUrls dari widget, fallback ke _surat
+    final urls = widget.lampiranUrls.isNotEmpty
+        ? widget.lampiranUrls
+        : (_surat?.lampiranUrls ?? []);
+
+    if (urls.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Tidak ada lampiran")));
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullScreenImageViewer(imageUrls: urls, initialIndex: 0),
+      ),
+    );
   }
 
   @override
@@ -54,355 +116,254 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// HEADER
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    w * 0.05,
-                    h * 0.025,
-                    w * 0.05,
-                    0,
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Icon(
-                          Icons.arrow_back_ios_new,
-                          color: AppColors.bluePrimary,
-                          size: rf(20, w),
-                        ),
-                      ),
-                      SizedBox(width: w * 0.015),
-                      Text(
-                        "Detail Surat Masuk",
-                        style: TextStyle(
-                          fontSize: rf(18, w),
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.bluePrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                SizedBox(height: h * 0.025),
-
-                /// CONTENT
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(horizontal: w * 0.05),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        /// ── Card Jabatan Waka ──
-                        if (widget.isApproved && widget.showWaka) ...[
-                          _sectionCard(
-                            w: w,
-                            children: [
-                              _buildLabel("Jabatan Waka", w),
-                              SizedBox(height: h * 0.008),
-                              widget.isReadOnly
-                                  ? _readOnlyField(
-                                      value: widget.jabatanWaka.isEmpty
-                                          ? "-"
-                                          : widget.jabatanWaka,
-                                      w: w,
-                                      h: h,
-                                    )
-                                  : _radioWaka(w, h),
-                            ],
-                          ),
-                          SizedBox(height: h * 0.01),
-                        ],
-
-                        /// ── Card Catatan ──
-                        _sectionCard(
-                          w: w,
-                          children: [
-                            _buildLabel("Catatan", w),
-                            SizedBox(height: h * 0.008),
-                            _readOnlyTextArea(
-                              value: widget.catatan,
-                              w: w,
-                              h: h,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: h * 0.02),
-
-                        /// ── Lampiran ──
-                        if (widget.isReadOnly &&
-                            widget.lampiranUrls.isNotEmpty) ...[
-                          Text(
-                            "Lampiran Surat",
-                            style: TextStyle(
-                              fontSize: rf(15, w),
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.bluePrimary,
-                            ),
-                          ),
-                          SizedBox(height: h * 0.012),
-                          _sectionCard(
-                            w: w,
-                            children: [
-                              _AttachmentCarousel(
-                                attachmentUrls: widget.lampiranUrls,
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: h * 0.025),
-                        ],
-
-                        /// ── Buttons ──
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Wrap(
-                            alignment: WrapAlignment.end,
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: Size(0, h * 0.055),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: w * 0.05,
-                                    vertical: h * 0.014,
-                                  ),
-                                  side: const BorderSide(
-                                    color: AppColors.bluePrimary,
-                                    width: 1.2,
-                                  ),
-                                  foregroundColor: AppColors.bluePrimary,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  if (widget.lampiranUrls.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Tidak ada lampiran'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => FullScreenImageViewer(
-                                        imageUrls: widget.lampiranUrls,
-                                        initialIndex: 0,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: Icon(
-                                  Icons.remove_red_eye,
-                                  size: w * 0.045,
-                                ),
-                                label: Text(
-                                  "Lihat Surat",
-                                  style: TextStyle(
-                                    fontSize: rf(14, w),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-
-                              if (!widget.isReadOnly) ...[
-                                if (widget.isApproved)
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: Size(0, h * 0.055),
-                                      backgroundColor: AppColors.bluePrimary,
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: w * 0.05,
-                                        vertical: h * 0.014,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: () => _onSubmit(),
-                                    icon: Icon(Icons.send, size: w * 0.045),
-                                    label: Text(
-                                      "Teruskan",
-                                      style: TextStyle(
-                                        fontSize: rf(14, w),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      minimumSize: Size(0, h * 0.055),
-                                      backgroundColor: AppColors.bluePrimary,
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: w * 0.05,
-                                        vertical: h * 0.014,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: () => _onSubmit(),
-                                    child: Text(
-                                      "Konfirmasi",
-                                      style: TextStyle(
-                                        fontSize: rf(14, w),
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ],
-                          ),
-                        ),
-
-                        SizedBox(height: h * 0.03),
-                      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // HEADER
+            Padding(
+              padding: EdgeInsets.fromLTRB(w * 0.05, h * 0.025, w * 0.05, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: AppColors.bluePrimary,
+                      size: rf(20, w),
                     ),
                   ),
+                  SizedBox(width: w * 0.015),
+                  Text(
+                    "Detail Surat Masuk",
+                    style: TextStyle(
+                      fontSize: rf(18, w),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.bluePrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: h * 0.025),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: w * 0.05),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.showWaka) ...[
+                      _sectionCard(
+                        w: w,
+                        children: [
+                          _label("Jabatan Waka", w),
+                          SizedBox(height: h * 0.01),
+                          if (widget.isReadOnly)
+                            _wakaReadOnly(w, h)
+                          else
+                            _radioWaka(w, h),
+                        ],
+                      ),
+                      SizedBox(height: h * 0.018),
+                    ],
+
+                    _sectionCard(
+                      w: w,
+                      children: [
+                        _label("Catatan", w),
+                        SizedBox(height: h * 0.01),
+                        _textArea(value: widget.catatan, w: w, h: h),
+                      ],
+                    ),
+
+                    SizedBox(height: h * 0.025),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 130,
+                          height: 42,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppColors.bluePrimary,
+                              ),
+                              foregroundColor: AppColors.bluePrimary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: _bukaLampiran,
+                            icon: const Icon(Icons.remove_red_eye, size: 18),
+                            label: const Text(
+                              "Lihat Surat",
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (!widget.isReadOnly) ...[
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 110,
+                            height: 42,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.bluePrimary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: _onSubmit,
+                              icon: Icon(
+                                widget.isApproved ? Icons.send : Icons.check,
+                                size: 18,
+                              ),
+                              label: Text(
+                                widget.showWaka ? "Teruskan" : "Konfirmasi",
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    SizedBox(height: h * 0.03),
+                  ],
                 ),
-              ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Waka read-only
+  Widget _wakaReadOnly(double w, double h) {
+    final nama = widget.namaWaka ?? '-';
+    final jabatan = widget.jabatanWaka ?? '-';
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: w * 0.03, vertical: h * 0.015),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            nama,
+            style: TextStyle(
+              fontSize: rf(15, w),
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
             ),
           ),
-        ),
+          if (jabatan != '-') ...[
+            const SizedBox(height: 2),
+            Text(
+              jabatan,
+              style: TextStyle(
+                fontSize: rf(12, w),
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  /// Handler submit: kirim data jabatan Waka dan catatan.
-  void _onSubmit() {
-    if (widget.isApproved &&
-        (_selectedWaka == null || _selectedWaka!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Pilih jabatan Waka terlebih dahulu."),
-          backgroundColor: Colors.red.shade400,
+  // ⭐ RADIO WAKA — PASTIKAN INI MUNCUL
+  Widget _radioWaka(double w, double h) {
+    if (widget.wakaList.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(w * 0.03),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          "Tidak ada data Waka",
+          style: TextStyle(fontSize: rf(14, w), color: Colors.grey.shade600),
         ),
       );
-      return;
     }
 
-    final payload = {
-      'jabatanWaka': widget.isApproved ? _selectedWaka : null,
-      'isApproved': widget.isApproved,
-    };
-
-    debugPrint('Payload disposisi: $payload');
-    Navigator.of(context).pop(payload);
-  }
-
-  /// Label teks untuk field.
-  Widget _buildLabel(String text, double w) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: rf(14, w),
-        fontWeight: FontWeight.bold,
-        color: AppColors.bluePrimary,
-      ),
-    );
-  }
-
-  Widget _radioWaka(double w, double h) {
-    final options = [
-      {
-        'value': 'wakaKurikulum',
-        'label': 'Waka Kurikulum',
-        'sub': 'Bidang kurikulum & pembelajaran',
-      },
-      {
-        'value': 'wakaKesiswaan',
-        'label': 'Waka Kesiswaan',
-        'sub': 'Bidang kesiswaan & ekstrakurikuler',
-      },
-      {
-        'value': 'wakaHumas',
-        'label': 'Waka Humas',
-        'sub': 'Bidang hubungan masyarakat',
-      },
-      {
-        'value': 'wakaSarpras',
-        'label': 'Waka Sarpras',
-        'sub': 'Bidang sarana & prasarana',
-      },
-    ];
-
     return Column(
-      children: options.map((opt) {
-        final isSelected = _selectedWaka == opt['value'];
+      children: widget.wakaList.map((waka) {
+        final selected = _selectedWakaID == waka['id'];
+        final jabatan = waka['jabatan'] ?? '-';
+        final deskripsi = _jabatanDeskripsi(jabatan);
 
         return GestureDetector(
-          onTap: () => setState(() {
-            _selectedWaka = opt['value']!;
-          }),
+          onTap: () => setState(() => _selectedWakaID = waka['id']),
           child: Container(
             margin: EdgeInsets.only(bottom: h * 0.01),
             padding: EdgeInsets.symmetric(
-              horizontal: w * 0.035,
-              vertical: h * 0.010, // sebelumnya 0.015
+              horizontal: w * 0.03,
+              vertical: h * 0.012,
             ),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFEAF4FF) : Colors.white,
+              color: selected ? const Color(0xFFEAF4FF) : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected
-                    ? AppColors.bluePrimary
-                    : Colors.grey.shade300,
-                width: isSelected ? 1.5 : 1,
+                color: selected ? AppColors.bluePrimary : Colors.grey.shade300,
+                width: selected ? 1.5 : 1,
               ),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Radio<String>(
-                  value: opt['value']!,
-                  groupValue: _selectedWaka,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedWaka = value;
-                    });
-                  },
-                  activeColor: AppColors.bluePrimary,
-                  visualDensity: VisualDensity.compact,
+                Radio<int>(
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: const VisualDensity(
+                    horizontal: -4,
+                    vertical: -4,
+                  ),
+                  value: waka['id'],
+                  groupValue: _selectedWakaID,
+                  activeColor: AppColors.bluePrimary,
+                  onChanged: (value) => setState(() => _selectedWakaID = value),
                 ),
-
-                SizedBox(width: w * 0.02),
-
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        opt['label']!,
+                        _capitalize(jabatan),
                         style: TextStyle(
                           fontSize: rf(14, w),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
                         ),
                       ),
-
-                      SizedBox(height: 2),
-
+                      const SizedBox(height: 2),
                       Text(
-                        opt['sub']!,
+                        deskripsi,
                         style: TextStyle(
-                          fontSize: rf(11, w), // sebelumnya 12
+                          fontSize: rf(11, w),
                           color: Colors.grey.shade600,
-                          height: 1.2, // rapatkan antar baris
                         ),
                       ),
                     ],
@@ -416,45 +377,51 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     );
   }
 
-  // ── Section card ──────────────────────────────────────────────────────────
-  Widget _sectionCard({required List<Widget> children, required double w}) {
-    return Card(
-      elevation: 3,
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(w * 0.04),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(w * 0.04),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
-        ),
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return text
+        .split(' ')
+        .map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : w)
+        .join(' ');
+  }
+
+  String _jabatanDeskripsi(String jabatan) {
+    final j = jabatan.toLowerCase();
+    if (j.contains('kesiswaan')) return 'Bidang Kesiswaan & Ekstrakurikuler';
+    if (j.contains('kurikulum')) return 'Bidang Kurikulum & Pembelajaran';
+    if (j.contains('humas')) return 'Bidang Hubungan Masyarakat';
+    if (j.contains('sarpras')) return 'Bidang Sarana & Prasarana';
+    return 'Wakil Kepala Sekolah';
+  }
+
+  Widget _label(String text, double w) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: rf(14, w),
+        fontWeight: FontWeight.bold,
+        color: AppColors.bluePrimary,
       ),
     );
   }
 
-  // ── Read only field ───────────────────────────────────────────────────────
-  Widget _readOnlyField({
-    required String value,
-    required double w,
-    required double h,
-  }) {
+  Widget _sectionCard({required double w, required List<Widget> children}) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: w * 0.03, vertical: h * 0.012),
+      padding: EdgeInsets.all(w * 0.04),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(w * 0.02),
-        color: Colors.grey.shade50,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
       ),
-      child: Text(value, style: TextStyle(fontSize: rf(14, w))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     );
   }
 
-  // ── Read only text area ───────────────────────────────────────────────────
-  Widget _readOnlyTextArea({
+  Widget _textArea({
     required String value,
     required double w,
     required double h,
@@ -462,137 +429,14 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(minHeight: h * 0.1),
-      padding: EdgeInsets.symmetric(horizontal: w * 0.03, vertical: h * 0.012),
+      padding: EdgeInsets.symmetric(horizontal: w * 0.03, vertical: h * 0.015),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(w * 0.02),
-        color: Colors.grey.shade50,
       ),
       child: Text(
         value.isEmpty ? "-" : value,
         style: TextStyle(fontSize: rf(14, w)),
-      ),
-    );
-  }
-}
-
-// ── Attachment Carousel ───────────────────────────────────────────────────────
-
-class _AttachmentCarousel extends StatefulWidget {
-  const _AttachmentCarousel({required this.attachmentUrls});
-  final List<String> attachmentUrls;
-
-  @override
-  State<_AttachmentCarousel> createState() => _AttachmentCarouselState();
-}
-
-class _AttachmentCarouselState extends State<_AttachmentCarousel> {
-  late PageController _pageController;
-  int _currentIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final attachmentUrls = widget.attachmentUrls;
-    final size = MediaQuery.of(context).size;
-    final w = size.width;
-    final h = size.height;
-
-    return SizedBox(
-      height: w * 0.55,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          PageView.builder(
-            controller: _pageController,
-            itemCount: attachmentUrls.length,
-            onPageChanged: (i) => setState(() => _currentIndex = i),
-            itemBuilder: (context, index) {
-              final path = attachmentUrls[index];
-              return Padding(
-                padding: EdgeInsets.only(right: w * 0.02),
-                child: InkWell(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FullScreenImageViewer(
-                          imageAssetPath: path,
-                          imageUrls: attachmentUrls,
-                          initialIndex: index,
-                        ),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(w * 0.03),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(w * 0.03),
-                    child: Container(
-                      width: double.infinity,
-                      color: Colors.grey.shade200,
-                      child: Image.asset(
-                        path,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) {
-                          return Padding(
-                            padding: EdgeInsets.symmetric(vertical: h * 0.04),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.broken_image,
-                                  size: w * 0.12,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(height: h * 0.01),
-                                Text(
-                                  "Gagal memuat gambar",
-                                  style: TextStyle(fontSize: w * 0.035),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          Positioned(
-            bottom: h * 0.015,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(attachmentUrls.length, (index) {
-                final isActive = index == _currentIndex;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: EdgeInsets.symmetric(horizontal: w * 0.008),
-                  width: isActive ? w * 0.025 : w * 0.015,
-                  height: isActive ? w * 0.025 : w * 0.015,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isActive
-                        ? AppColors.bluePrimary
-                        : Colors.grey.shade400,
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -10,16 +10,31 @@ class Session {
 
   static bool get isWakaRole => role == Role.waka;
 
+  // Alias yang dipakai splash_screen
+  static String get namaUser => nama;
+  static set namaUser(String v) => nama = v;
+  static String get emailUser => email;
+  static set emailUser(String v) => email = v;
+  static String get namaJabatan => jabatan;
+  static set namaJabatan(String v) => jabatan = v;
+
   // ── History TU Filter ─────────────────────────────────
   static String historySearchQuery = '';
   static String historyStatusFilter = 'semua';
   static String historyDateFilter = 'Hari ini';
   static String historyActiveChip = 'Hari ini';
   static DateTime? historyStartDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
   );
   static DateTime? historyEndDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+    23,
+    59,
+    59,
   );
 
   // ── History Kepsek Filter ─────────────────────────────
@@ -28,10 +43,17 @@ class Session {
   static String kepsekDateFilter = 'Hari ini';
   static String kepsekActiveChip = 'Hari ini';
   static DateTime? kepsekStartDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
   );
   static DateTime? kepsekEndDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+    23,
+    59,
+    59,
   );
 
   // ── History Users Filter ───────────────────────────────
@@ -39,10 +61,17 @@ class Session {
   static String userHistoryDateFilter = 'Hari ini';
   static String userHistoryActiveChip = 'Hari ini';
   static DateTime? userHistoryStartDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
   );
   static DateTime? userHistoryEndDate = DateTime(
-    DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59,
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+    23,
+    59,
+    59,
   );
 
   // ── Reset saat logout ─────────────────────────────────
@@ -86,3 +115,5 @@ class Session {
     resetUserHistoryFilter();
   }
 }
+// Tambahan alias yang dipakai splash_screen
+// (splash_screen pakai Session.namaUser / emailUser / namaJabatan)

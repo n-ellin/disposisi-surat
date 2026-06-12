@@ -147,8 +147,8 @@ class SuratCard extends StatelessWidget {
                     child: isHome
                         ? _buildHomeCard(w)
                         : isHistory
-                            ? _buildHistoryCard(w)
-                            : _buildMenuCard(w),
+                        ? _buildHistoryCard(w)
+                        : _buildMenuCard(w),
                   ),
                 ),
               ],
@@ -171,9 +171,7 @@ class SuratCard extends StatelessWidget {
           width: w * 0.115,
           height: w * 0.115,
           decoration: BoxDecoration(
-            color: isMasuk
-                ? const Color(0xFFE7F6F8)
-                : const Color(0xFFFFF1E3),
+            color: isMasuk ? const Color(0xFFE7F6F8) : const Color(0xFFFFF1E3),
             borderRadius: BorderRadius.circular(w * 0.035),
           ),
           child: Center(

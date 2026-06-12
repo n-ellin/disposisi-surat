@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
-
-// =========================================================
-// DETAIL SURAT WAKA
-// =========================================================
+import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
 
 class DetailSuratWaka extends StatefulWidget {
   final Map<String, dynamic> surat;
@@ -19,14 +17,16 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   // =========================================================
   // DATA SURAT
   // =========================================================
+  final _suratMasukRepo = SuratMasukRepository();
 
   Map<String, dynamic> get _suratData => widget.surat['data'] ?? {};
 
   List<String> get _attachmentUrls =>
       List<String>.from(widget.surat['lampiran'] ?? []);
 
+  // catatan dari kepsek untuk waka (read-only)
   String get _catatanKepsek =>
-      widget.surat['catatanKepsek']?.toString().trim() ?? '';
+      widget.surat['catatanVerifikasi']?.toString().trim() ?? '';
 
   // =========================================================
   // STATE DISPOSISI
@@ -35,66 +35,41 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   final List<String> _selectedGuru = [];
   final TextEditingController _catatanDisposisiCtrl = TextEditingController();
   bool _showGuruError = false;
-  bool _showCatatanError = false;
 
-  /// TODO: Ganti isi list ini dengan nama guru yang sesuai.
-  final List<String> _guruList = [
-    'SLAMET RIADI, S.Pd',
-    'MOCHAMAD BACHRUDIN, S.Pd',
-    'SOLIKAH, S.Pd',
-    'Hj. TITIK MARIYATI, S.Pd',
-    'Dra. SITI MUZAYYANAH',
-    'DYAH AYU KOMALA, ST',
-    'TRIANA ARDIANI, S.Pd',
-    'DIANA FARIDA, S.Si',
-    'WIWIN WINANGSIH, S.Pd, M.Pd',
-    'FAJAR NINGTYAS, S.Pd',
-    'ADHI BAGUS PERMANA, S.Pd',
-    'DIMAS MAHARENDRA OKTENDIMA, S.Pd',
-    'FEBRINA CANDRA CAHYANING DIAN, S.Sn',
-    'IDA AYU SUNIANTARI, S.Pd.H',
-    'SOFIANASARI, S.Sn',
-    'EWIT IRNIYAH, S.Pd',
-    'FAUZI RAHMADANI, SSn',
-    'ANJAR AFIF AFANDI, ST, M.Pd',
-    'BAMBANG ISHARTANTO, ST',
-    'VITA PRIMASARI, S.Pd',
-    'ALIFAH DIANTEBES AINDRA, S.Pd',
-    'CHUTMAN EFENDI, S,Pd, Gr',
-    'DEVI ARVENI, S.Pd, Gr',
-    'FALKUDIN, S.T',
-    'IMAM SYAFII, S.Pd',
-    'MEGA DWININGRUM, S.Pd',
-    'MIRA AYU, S.Pd',
-    'MOKHAMAD AMRUL SADAT, ST,M.Pd',
-    'NURAZIZAH CHOLIDIYAH,S.S.,Gr.',
-    'TRIYAS KUSUMAWARDHANI, S.Pd., Gr.',
-    'ZULUL MUTHOMIMAH, S.PdI',
-    'ZOULFIKAR RAMSANJANIE AQSHA, S.Kom',
-    'YEFRY RULLY ISMARTONO, S.Pd',
-    'FIDDA ZURIKA ISLAMIA, S.Pd',
-    'RR. HENNING GRATYANIS ANGGRAENI, S.Pd',
-    'RUFI\'AH, S.Ag',
-    'MISBAH ABDULAH OHOIRAT, S.Pd.I',
-    'FAIZATUL MUKRIMAH, S.Pd.I',
-    'LINA WULAN CAHYANI, S.Pd',
-    'INTAN NUSANTARA WATI, S.Pd',
-    'NURRUDIN SEPTIAWAN, S.Kom',
-    'ST IKA NOVITA SALIMA, S.Si',
-    'SUPADMO, S.Pd',
-    'AMIN MACHMUDI, S.Pd',
-    'FENIS FITRIA DEWI, S.Si',
-    'INASNI DYAH RAHMATIKA, S.Pd',
-    'FITRIA KUMALA TRISNA, ST',
-    'MOH. KHAMDAN SYAIFUDDIN, A.Md',
-    'TUTIK FARIDA, S.Pd',
-    'MARKUS PAWIRO DIHARJO, M.Th',
-  ];
+  List<Map<String, dynamic>> _guruList = [];
+  bool _isLoadingGuru = true;
+
+  // =========================================================
+  // LIFECYCLE
+  // =========================================================
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchGuruList();
+  }
 
   @override
   void dispose() {
     _catatanDisposisiCtrl.dispose();
     super.dispose();
+  }
+
+  // =========================================================
+  // FETCH GURU - GET /api/users?role=user
+  // =========================================================
+
+  Future<void> _fetchGuruList() async {
+    try {
+      final res = await ApiClient.dio.get('/api/users', queryParameters: {'role': 'user'});
+      final List data = res.data['data'] as List? ?? [];
+      setState(() {
+        _guruList = data.cast<Map<String, dynamic>>();
+        _isLoadingGuru = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingGuru = false);
+    }
   }
 
   // =========================================================
@@ -120,9 +95,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header fixed (tidak ikut scroll)
             _buildHeader(context, w, h),
-            // Konten scrollable
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: w * 0.05),
@@ -132,13 +105,15 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
                     SizedBox(height: h * 0.025),
                     _buildDetailCard(context, w, h),
                     SizedBox(height: h * 0.02),
-                    _buildCatatan(context, w, h),
-                    SizedBox(height: h * 0.02),
+                    if (_catatanKepsek.isNotEmpty) ...[
+                      _buildCatatan(context, w, h),
+                      SizedBox(height: h * 0.02),
+                    ],
                     _buildDisposisiCard(context, w, h),
                     SizedBox(height: h * 0.02),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: _buildTombolKonfirmasi(context, w),
+                      child: _buildTombolTeruskan(context, w),
                     ),
                     SizedBox(height: h * 0.03),
                   ],
@@ -240,63 +215,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             )
           else
             _buildLampiranTile(context, w),
-
-          // ← TOMBOL LIHAT SURAT PDF
-          if ((_suratData['file_pdf'] ?? '').toString().isNotEmpty) ...[
-            SizedBox(height: h * 0.012),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SuratPdfViewer(
-                      filePdf: _suratData['file_pdf'].toString(),
-                      judul: _suratData['Perihal'] ?? 'Lihat Surat',
-                    ),
-                  ),
-                );
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: rf(context, 14),
-                  vertical: rf(context, 12),
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.bluePrimary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(rf(context, 10)),
-                  border: Border.all(
-                    color: AppColors.bluePrimary.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.picture_as_pdf_outlined,
-                      color: AppColors.bluePrimary,
-                      size: rf(context, 20),
-                    ),
-                    SizedBox(width: w * 0.025),
-                    Expanded(
-                      child: Text(
-                        'Lihat Surat (PDF)',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: rf(context, 14),
-                          color: AppColors.bluePrimary,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.open_in_new,
-                      color: AppColors.bluePrimary.withValues(alpha: 0.6),
-                      size: rf(context, 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -364,7 +282,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- Section header ---
           Row(
             children: [
               Container(
@@ -389,46 +306,42 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
 
           SizedBox(height: h * 0.016),
 
-          // --- Dropdown + inline error ---
-          _GuruSearchDropdown(
-            label: 'Pilih guru',
-            guruList: _guruList,
-            selected: _selectedGuru,
-            accentColor: AppColors.bluePrimary,
-            hasError: _showGuruError,
-            onChanged: (guru, isAdd) {
-              setState(() {
-                if (isAdd) {
-                  _selectedGuru.add(guru);
-                } else {
-                  _selectedGuru.remove(guru);
-                }
-                if (_selectedGuru.isNotEmpty) _showGuruError = false;
-              });
-            },
-          ),
+          if (_isLoadingGuru)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.all(rf(context, 20)),
+                child: CircularProgressIndicator(color: AppColors.bluePrimary),
+              ),
+            )
+          else
+            _GuruSearchDropdown(
+              label: 'Pilih guru',
+              guruList: _guruList.map((g) => g['nama'] as String? ?? '').toList(),
+              selected: _selectedGuru,
+              accentColor: AppColors.bluePrimary,
+              hasError: _showGuruError,
+              onChanged: (guru, isAdd) {
+                setState(() {
+                  if (isAdd) {
+                    _selectedGuru.add(guru);
+                  } else {
+                    _selectedGuru.remove(guru);
+                  }
+                  if (_selectedGuru.isNotEmpty) _showGuruError = false;
+                });
+              },
+            ),
 
-          // --- Inline error text ---
           if (_showGuruError)
             Padding(
-              padding: EdgeInsets.only(
-                top: rf(context, 6),
-                left: rf(context, 4),
-              ),
+              padding: EdgeInsets.only(top: rf(context, 6), left: rf(context, 4)),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: rf(context, 13),
-                    color: Colors.red.shade400,
-                  ),
+                  Icon(Icons.error_outline, size: rf(context, 13), color: Colors.red.shade400),
                   SizedBox(width: rf(context, 4)),
                   Text(
                     'Pilih minimal 1 guru terlebih dahulu',
-                    style: TextStyle(
-                      fontSize: rf(context, 12),
-                      color: Colors.red.shade400,
-                    ),
+                    style: TextStyle(fontSize: rf(context, 12), color: Colors.red.shade400),
                   ),
                 ],
               ),
@@ -436,7 +349,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
 
           SizedBox(height: rf(context, 10)),
 
-          // --- Chips guru terpilih ---
           if (_selectedGuru.isEmpty)
             Padding(
               padding: EdgeInsets.only(bottom: rf(context, 8)),
@@ -453,14 +365,11 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             Wrap(
               spacing: rf(context, 6),
               runSpacing: rf(context, 6),
-              children: _selectedGuru.map((guru) {
-                return _buildGuruChip(context, guru);
-              }).toList(),
+              children: _selectedGuru.map((guru) => _buildGuruChip(context, guru)).toList(),
             ),
 
           SizedBox(height: h * 0.016),
 
-          // --- Field catatan disposisi ---
           Row(
             children: [
               Container(
@@ -473,7 +382,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
               SizedBox(width: w * 0.02),
               Text(
-                'Catatan disposisi',
+                'Catatan untuk guru',
                 style: TextStyle(
                   fontSize: rf(context, 12),
                   color: AppColors.bluePrimary,
@@ -487,20 +396,9 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
             controller: _catatanDisposisiCtrl,
             maxLines: 4,
             style: TextStyle(fontSize: rf(context, 14)),
-            onChanged: (val) {
-              if (val.trim().isNotEmpty && _showCatatanError) {
-                setState(
-                  () => _showCatatanError = false,
-                ); // ← hapus error saat diisi
-              }
-            },
             decoration: InputDecoration(
               hintText: 'Tulis catatan untuk guru yang dituju...',
-              hintStyle: TextStyle(
-                fontSize: rf(context, 13),
-                color: Colors.grey.shade400,
-              ),
-
+              hintStyle: TextStyle(fontSize: rf(context, 13), color: Colors.grey.shade400),
               contentPadding: EdgeInsets.all(rf(context, 12)),
               filled: true,
               fillColor: Colors.grey.shade50,
@@ -510,12 +408,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(rf(context, 10)),
-                borderSide: BorderSide(
-                  color:
-                      _showCatatanError // ← merah kalau error
-                      ? Colors.red.shade400
-                      : Colors.grey.shade200,
-                ),
+                borderSide: BorderSide(color: Colors.grey.shade200),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(rf(context, 10)),
@@ -523,37 +416,15 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
             ),
           ),
-          // --- Inline error catatan ---
-          if (_showCatatanError)
-            Padding(
-              padding: EdgeInsets.only(
-                top: rf(context, 6),
-                left: rf(context, 4),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: rf(context, 13),
-                    color: Colors.red.shade400,
-                  ),
-                  SizedBox(width: rf(context, 4)),
-                  Text(
-                    'Catatan wajib diisi',
-                    style: TextStyle(
-                      fontSize: rf(context, 12),
-                      color: Colors.red.shade400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
 
-  /// Chip individual guru yang bisa di-remove.
+  // =========================================================
+  // CHIP
+  // =========================================================
+
   Widget _buildGuruChip(BuildContext context, String guru) {
     return Container(
       padding: EdgeInsets.symmetric(
@@ -568,11 +439,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.person_outline,
-            size: rf(context, 13),
-            color: AppColors.bluePrimary,
-          ),
+          Icon(Icons.person_outline, size: rf(context, 13), color: AppColors.bluePrimary),
           SizedBox(width: rf(context, 4)),
           Text(
             guru,
@@ -584,9 +451,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
           ),
           SizedBox(width: rf(context, 4)),
           GestureDetector(
-            onTap: () {
-              setState(() => _selectedGuru.remove(guru));
-            },
+            onTap: () => setState(() => _selectedGuru.remove(guru)),
             child: Container(
               width: rf(context, 16),
               height: rf(context, 16),
@@ -594,11 +459,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
                 color: AppColors.bluePrimary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.close,
-                size: rf(context, 10),
-                color: AppColors.bluePrimary,
-              ),
+              child: Icon(Icons.close, size: rf(context, 10), color: AppColors.bluePrimary),
             ),
           ),
         ],
@@ -607,57 +468,62 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   }
 
   // =========================================================
-  // BUTTONS
+  // TOMBOL TERUSKAN
   // =========================================================
 
-  Widget _buildTombolKonfirmasi(BuildContext context, double w) {
+  Widget _buildTombolTeruskan(BuildContext context, double w) {
     return ElevatedButton(
       style: _buttonStyle(context),
-      onPressed: _onKonfirmasi,
+      onPressed: _onTeruskan,
       child: Text(
-        'Konfirmasi',
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: rf(context, 14),
-        ),
+        'Teruskan',
+        style: TextStyle(fontWeight: FontWeight.w700, fontSize: rf(context, 14)),
       ),
     );
   }
 
-  void _onKonfirmasi() {
-    bool hasError = false;
-
+  Future<void> _onTeruskan() async {
     if (_selectedGuru.isEmpty) {
       setState(() => _showGuruError = true);
-      hasError = true;
+      return;
     }
 
-    if (hasError) return;
+    // Map nama guru ke ID
+    final guruIds = _selectedGuru.map((nama) {
+      final guru = _guruList.firstWhere(
+        (g) => g['nama'] == nama,
+        orElse: () => {'id': 0},
+      );
+      return (guru['id'] as int?) ?? 0;
+    }).where((id) => id != 0).toList();
 
-    final payload = {
-      'id_surat': _suratData['id'],
-      'guru': _selectedGuru,
-      'catatan': _catatanDisposisiCtrl.text.trim(),
-    };
+    if (guruIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal mendapatkan ID guru')),
+      );
+      return;
+    }
 
-    _showSuccessDialog(context, 'Disposisi berhasil dikirim.');
+    try {
+      // FIX: gunakan PUT /api/surat-masuk/:id/teruskan-waka
+      // dengan body { diteruskan_ke: [...], catatan_waka: "..." }
+      await _suratMasukRepo.teruskanKeUser(
+        widget.surat['id'] as int,
+        userIds: guruIds,
+        catatanWaka: _catatanDisposisiCtrl.text.trim(),
+      );
+      _showSuccessDialog(context, 'Disposisi berhasil dikirim ke guru.');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
 
   // =========================================================
   // FEEDBACK UI
   // =========================================================
-
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(fontSize: 13)),
-        backgroundColor: AppColors.bluePrimary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 
   void _showSuccessDialog(BuildContext context, String message) {
     showDialog(
@@ -665,9 +531,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       barrierDismissible: false,
       builder: (_) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -683,13 +547,8 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 16),
-
-              Text(
-                message,
-                style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
-              ),
+              Text(message, style: TextStyle(fontSize: 15, color: Colors.grey.shade700)),
             ],
           ),
           actionsPadding: const EdgeInsets.only(right: 16, bottom: 12),
@@ -702,18 +561,13 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
                   backgroundColor: AppColors.bluePrimary,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 onPressed: () {
-                  Navigator.pop(context); // tutup dialog
-                  Navigator.pop(context); // kembali ke halaman sebelumnya
+                  Navigator.pop(context);
+                  Navigator.pop(context);
                 },
-                child: const Text(
-                  'OK',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -751,27 +605,16 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.attach_file_rounded,
-              color: AppColors.bluePrimary,
-              size: rf(context, 20),
-            ),
+            Icon(Icons.attach_file_rounded, color: AppColors.bluePrimary, size: rf(context, 20)),
             SizedBox(width: w * 0.025),
             Expanded(
               child: Text(
                 '${_attachmentUrls.length} File Lampiran',
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: rf(context, 14),
-                ),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: rf(context, 14)),
               ),
             ),
-            Icon(
-              Icons.remove_red_eye_outlined,
-              color: Colors.grey.shade500,
-              size: rf(context, 16),
-            ),
+            Icon(Icons.remove_red_eye_outlined, color: Colors.grey.shade500, size: rf(context, 16)),
           ],
         ),
       ),
@@ -805,15 +648,9 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
         horizontal: rf(context, 20),
         vertical: rf(context, 12),
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(rf(context, 12)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(rf(context, 12))),
     );
   }
-
-  // =========================================================
-  // DETAIL ITEM
-  // =========================================================
 
   Widget _detailItem(
     BuildContext context, {
@@ -829,11 +666,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
         children: [
           Padding(
             padding: EdgeInsets.only(top: rf(context, 3)),
-            child: Icon(
-              icon,
-              color: Colors.grey.shade500,
-              size: rf(context, 24),
-            ),
+            child: Icon(icon, color: Colors.grey.shade500, size: rf(context, 24)),
           ),
           SizedBox(width: w * 0.04),
           Expanded(
@@ -867,7 +700,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
 }
 
 // =========================================================
-// GURU SEARCH DROPDOWN — Style C (Floating Label)
+// GURU SEARCH DROPDOWN (sama seperti sebelumnya)
 // =========================================================
 
 class _GuruSearchDropdown extends StatefulWidget {
@@ -914,13 +747,8 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
   void initState() {
     super.initState();
     _filtered = widget.guruList;
-
-    _labelAnim = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 160),
-    );
+    _labelAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 160));
     _labelT = CurvedAnimation(parent: _labelAnim, curve: Curves.easeOut);
-
     _focusNode.addListener(_onFocusChange);
     _searchCtrl.addListener(() => _filterGuru(_searchCtrl.text));
   }
@@ -1009,10 +837,7 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
                         padding: EdgeInsets.all(rf(14)),
                         child: Text(
                           'Guru tidak ditemukan',
-                          style: TextStyle(
-                            fontSize: rf(13),
-                            color: Colors.grey.shade400,
-                          ),
+                          style: TextStyle(fontSize: rf(13), color: Colors.grey.shade400),
                         ),
                       )
                     : ClipRRect(
@@ -1035,28 +860,18 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
                               leading: Icon(
                                 Icons.person_outline,
                                 size: rf(18),
-                                color: isSelected
-                                    ? widget.accentColor
-                                    : Colors.grey.shade400,
+                                color: isSelected ? widget.accentColor : Colors.grey.shade400,
                               ),
                               title: Text(
                                 guru,
                                 style: TextStyle(
                                   fontSize: rf(13),
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: isSelected
-                                      ? widget.accentColor
-                                      : Colors.grey.shade800,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                  color: isSelected ? widget.accentColor : Colors.grey.shade800,
                                 ),
                               ),
                               trailing: isSelected
-                                  ? Icon(
-                                      Icons.check_circle,
-                                      size: rf(16),
-                                      color: widget.accentColor,
-                                    )
+                                  ? Icon(Icons.check_circle, size: rf(16), color: widget.accentColor)
                                   : null,
                               onTap: () => _selectGuru(guru),
                             );
@@ -1129,8 +944,6 @@ class _GuruSearchDropdownState extends State<_GuruSearchDropdown>
                   ),
                 ),
               ),
-
-              // Floating label
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeOut,

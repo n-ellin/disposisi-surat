@@ -3,13 +3,14 @@ import 'package:ta_mobile_disposisi_surat/shared/widgets/filterdatebar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/surat_card.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/custom_navbar.dart';
 import 'package:ta_mobile_disposisi_surat/shared/widgets/search_bar.dart';
+import 'package:ta_mobile_disposisi_surat/shared/widgets/filter_date.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/role.dart';
 import 'package:ta_mobile_disposisi_surat/core/helpers/navigation_helper.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/app_color.dart';
 import 'package:ta_mobile_disposisi_surat/core/constants/session.dart';
-import 'package:ta_mobile_disposisi_surat/core/constants/dummy.dart';
-import 'package:ta_mobile_disposisi_surat/shared/widgets/filter_date.dart';
-import 'package:ta_mobile_disposisi_surat/core/utils/full-images-viewer.dart';
+import 'package:ta_mobile_disposisi_surat/core/repositories/surat_masuk_repository.dart';
+import 'package:ta_mobile_disposisi_surat/features/users/pages/user/detail_surat_user.dart';
+import 'package:ta_mobile_disposisi_surat/features/users/pages/waka/detail_surat_waka.dart';
 
 class HistoryUsersPage extends StatefulWidget {
   final Role role;
@@ -30,70 +31,69 @@ class HistoryUsersPage extends StatefulWidget {
 }
 
 class _HistoryUsersPageState extends State<HistoryUsersPage> {
-  DateTime _parseTanggal(String tanggal) {
-    const bulan = {
-      'jan': 1, 'januari': 1,
-      'feb': 2, 'februari': 2,
-      'mar': 3, 'maret': 3,
-      'apr': 4, 'april': 4,
-      'mei': 5,
-      'jun': 6, 'juni': 6,
-      'jul': 7, 'juli': 7,
-      'agu': 8, 'agustus': 8,
-      'sep': 9, 'september': 9,
-      'okt': 10, 'oktober': 10,
-      'nov': 11, 'november': 11,
-      'des': 12, 'desember': 12,
-    };
+  final _suratMasukRepo = SuratMasukRepository();
 
+  List<Map<String, dynamic>> _historyList = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
-      final parts = tanggal.toLowerCase().trim().split(' ');
-      final day = int.parse(parts[0]);
-      final month = bulan[parts[1]] ?? 1;
-      final year = int.parse(parts[2]);
-      return DateTime(year, month, day);
-    } catch (_) {
-      return DateTime(1970);
+      final dateFrom = Session.userHistoryStartDate
+          ?.toIso8601String()
+          .substring(0, 10);
+      final dateTo = Session.userHistoryEndDate?.toIso8601String().substring(
+        0,
+        10,
+      );
+
+      final result = await _suratMasukRepo.getHistory(
+        dateFrom: dateFrom,
+        dateTo: dateTo,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _historyList = result.map((s) => s.toMenuMap()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Gagal memuat riwayat. Coba lagi.';
+        _historyList = [];
+        _isLoading = false;
+      });
     }
   }
 
-  List<Map<String, dynamic>> get _historySurat {
-    final suratRole = SuratDummy.suratUntukRole(
-      widget.role,
-      jabatan: widget.jabatan,
-    );
-
-    return suratRole
-        .where((s) => s['status'] == 'disetujui' || s['status'] == 'ditolak')
-        .map((s) => {...s, 'jenisSurat': 'Surat Masuk'})
-        .toList()
-      ..sort((a, b) {
-        final dateA = _parseTanggal(a['tanggal'] ?? '');
-        final dateB = _parseTanggal(b['tanggal'] ?? '');
-        return dateB.compareTo(dateA);
-      });
-  }
-
-  List<Map<String, dynamic>> get _filteredSurat {
-    return _historySurat.where((s) {
-      final query = Session.userHistorySearchQuery.toLowerCase();
-      final jenis = s['jenisSurat'].toString().toLowerCase();
-      final tanggal = s['tanggal'].toString().toLowerCase();
-      final dari = (s['data']?['Dari'] ?? '').toString().toLowerCase();
-      final perihal = (s['data']?['Perihal'] ?? '').toString().toLowerCase();
+  List<Map<String, dynamic>> get _filtered {
+    return _historyList.where((s) {
+      final data = s['data'] as Map<String, dynamic>? ?? {};
+      final q = Session.userHistorySearchQuery.toLowerCase();
 
       final matchSearch =
           Session.userHistorySearchQuery.isEmpty ||
-          jenis.contains(query) ||
-          tanggal.contains(query) ||
-          dari.contains(query) ||
-          perihal.contains(query);
+          (data['Perihal'] ?? '').toString().toLowerCase().contains(q) ||
+          (data['Dari'] ?? '').toString().toLowerCase().contains(q) ||
+          (data['Nomor Surat'] ?? '').toString().toLowerCase().contains(q);
 
       bool matchDate = true;
-      try {
-        final suratDate = _parseTanggal(s['tanggal'] ?? '');
-        if (Session.userHistoryStartDate != null &&
-            Session.userHistoryEndDate != null) {
+      if (Session.userHistoryStartDate != null &&
+          Session.userHistoryEndDate != null) {
+        final suratDate = _parseTanggal(s['tanggal']?.toString() ?? '');
+        if (suratDate.year > 1970) {
           final start = DateTime(
             Session.userHistoryStartDate!.year,
             Session.userHistoryStartDate!.month,
@@ -103,18 +103,43 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
             Session.userHistoryEndDate!.year,
             Session.userHistoryEndDate!.month,
             Session.userHistoryEndDate!.day,
-            23, 59, 59,
+            23,
+            59,
+            59,
           );
-          matchDate =
-              suratDate.isAfter(start.subtract(const Duration(days: 1))) &&
-              suratDate.isBefore(end.add(const Duration(seconds: 1)));
+          matchDate = !suratDate.isBefore(start) && !suratDate.isAfter(end);
         }
-      } catch (_) {
-        matchDate = true;
       }
 
       return matchSearch && matchDate;
     }).toList();
+  }
+
+  DateTime _parseTanggal(String tanggal) {
+    const bulan = {
+      'jan': 1,
+      'feb': 2,
+      'mar': 3,
+      'apr': 4,
+      'mei': 5,
+      'jun': 6,
+      'jul': 7,
+      'agu': 8,
+      'sep': 9,
+      'okt': 10,
+      'nov': 11,
+      'des': 12,
+    };
+    try {
+      final parts = tanggal.toLowerCase().trim().split(' ');
+      return DateTime(
+        int.parse(parts[2]),
+        bulan[parts[1]] ?? 1,
+        int.parse(parts[0]),
+      );
+    } catch (_) {
+      return DateTime(1970);
+    }
   }
 
   void _showDateFilter() async {
@@ -131,31 +156,7 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
       Session.userHistoryActiveChip = result.activeChip;
       Session.userHistoryDateFilter = result.dateFilterLabel;
     });
-  }
-
-  void _openLampiran(BuildContext context, Map<String, dynamic> surat) {
-    final List<String> lampiran = List<String>.from(surat['lampiran'] ?? []);
-    if (lampiran.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text("Tidak ada lampiran"),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            FullScreenImageViewer(imageUrls: lampiran, initialIndex: 0),
-      ),
-    );
+    _loadHistory();
   }
 
   @override
@@ -163,9 +164,7 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
     final w = MediaQuery.of(context).size.width;
     final h = MediaQuery.of(context).size.height;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-
-    double rf(double size) =>
-        (w * (size / 375)).clamp(size * 0.9, size * 1.15);
+    double rf(double size) => (w * (size / 375)).clamp(size * 0.9, size * 1.15);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -173,97 +172,55 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
         child: Column(
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(w * 0.04, h * 0.018, w * 0.04, 0),
+              padding: EdgeInsets.only(
+                top: h * 0.025,
+                left: w * 0.05,
+                right: w * 0.05,
+                bottom: h * 0.015,
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(
+                      Icons.arrow_back_ios_new,
+                      color: AppColors.bluePrimary,
+                      size: w * 0.055,
+                    ),
+                  ),
+                  SizedBox(width: w * 0.02),
+                  Text(
+                    'Riwayat',
+                    style: TextStyle(
+                      fontSize: w * 0.048,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.bluePrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(w * 0.05, 0, w * 0.05, 0),
               child: Column(
                 children: [
-                  Text(
-                    "Riwayat",
-                    style: TextStyle(
-                      fontSize: rf(24),
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.bluePrimary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-
-                  SizedBox(height: h * 0.016),
-
                   SearchBarInput(
-                    onChanged: (value) => setState(
-                      () => Session.userHistorySearchQuery = value,
-                    ),
+                    onChanged: (val) =>
+                        setState(() => Session.userHistorySearchQuery = val),
                   ),
-
-                  SizedBox(height: h * 0.014),
-
+                  SizedBox(height: h * 0.012),
                   DateFilterBar(
                     label: Session.userHistoryDateFilter,
                     onTap: _showDateFilter,
                   ),
-
                   SizedBox(height: h * 0.016),
                 ],
               ),
             ),
-
-            Expanded(
-              child: _filteredSurat.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: w * 0.2,
-                            height: w * 0.2,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.inbox_outlined,
-                              size: (w * 0.1).clamp(36, 60),
-                              color: Colors.grey.shade300,
-                            ),
-                          ),
-                          SizedBox(height: h * 0.016),
-                          Text(
-                            "Belum ada riwayat surat",
-                            style: TextStyle(
-                              fontSize: rf(15),
-                              color: Colors.grey.shade400,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: EdgeInsets.fromLTRB(
-                        w * 0.04, 0, w * 0.04, h * 0.02,
-                      ),
-                      itemCount: _filteredSurat.length,
-                      itemBuilder: (context, index) {
-                        final surat = _filteredSurat[index];
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: rf(8)),
-                          child: SuratCard(
-                            jenisSurat: surat['jenisSurat'].toString(),
-                            tanggal: surat['tanggal'].toString(),
-                            role: CardRole.Users,
-                            type: CardType.history,
-                            status: surat['status']?.toString(),
-                            data: Map<String, String>.from(surat['data']),
-                            diteruskanKe: surat['diteruskanKe']?.toString(),
-                            onDetail: () => _openLampiran(context, surat),
-                          ),
-                        );
-                      },
-                    ),
-            ),
+            Expanded(child: _buildBody(w, h, rf)),
           ],
         ),
       ),
-
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -281,8 +238,12 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
               role: widget.role,
               currentIndex: 1,
               onTap: (index) => handleNavbarTap(
-                context, index, widget.role,
-                widget.nama, widget.email, widget.jabatan,
+                context,
+                index,
+                widget.role,
+                widget.nama,
+                widget.email,
+                widget.jabatan,
               ),
             ),
           ),
@@ -291,6 +252,90 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
             child: SizedBox(height: bottomPadding, width: double.infinity),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBody(double w, double h, double Function(double) rf) {
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: AppColors.bluePrimary),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade300, size: 48),
+            SizedBox(height: h * 0.01),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            SizedBox(height: h * 0.01),
+            ElevatedButton(
+              onPressed: _loadHistory,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.bluePrimary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+              child: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_outlined, size: 56, color: Colors.grey.shade300),
+            SizedBox(height: h * 0.015),
+            Text(
+              'Belum ada riwayat surat',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: w * 0.04),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadHistory,
+      color: AppColors.bluePrimary,
+      child: ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: w * 0.05, vertical: h * 0.01),
+        itemCount: _filtered.length,
+        itemBuilder: (context, index) {
+          final surat = _filtered[index];
+          return Padding(
+            padding: EdgeInsets.only(bottom: h * 0.012),
+            child: SuratCard(
+              jenisSurat: surat['jenisSurat']?.toString() ?? 'Surat Masuk',
+              tanggal: surat['tanggal']?.toString() ?? '-',
+              data: Map<String, String>.from(surat['data'] ?? {}),
+              role: widget.role == Role.waka ? CardRole.waka : CardRole.Users,
+              type: CardType.history,
+              status: surat['status']?.toString() ?? '-',
+              onDetail: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => widget.role == Role.waka
+                        ? DetailSuratWaka(surat: surat)
+                        : DetailSuratUsers(surat: surat),
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
