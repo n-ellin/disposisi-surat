@@ -181,7 +181,6 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Teks tengah
                   Text(
                     'Riwayat',
                     style: TextStyle(
@@ -190,7 +189,6 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
                       color: AppColors.bluePrimary,
                     ),
                   ),
-                  // Back button kiri
                   Align(
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
@@ -335,7 +333,10 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
                   context,
                   MaterialPageRoute(
                     builder: (_) => widget.role == Role.waka
-                        ? DetailSuratWaka(surat: surat)
+                        ? DetailSuratWaka(
+                            surat: surat,
+                            isReadOnly: true, // ← READ-ONLY dari history
+                          )
                         : DetailSuratUsers(surat: surat),
                   ),
                 );

@@ -7,7 +7,15 @@ import 'package:ta_mobile_disposisi_surat/core/network/api_client.dart';
 class DetailSuratWaka extends StatefulWidget {
   final Map<String, dynamic> surat;
 
-  const DetailSuratWaka({super.key, required this.surat});
+  /// Jika true, halaman ini hanya menampilkan data (read-only).
+  /// Digunakan saat dibuka dari halaman Riwayat.
+  final bool isReadOnly;
+
+  const DetailSuratWaka({
+    super.key,
+    required this.surat,
+    this.isReadOnly = false,
+  });
 
   @override
   State<DetailSuratWaka> createState() => _DetailSuratWakaState();
@@ -29,13 +37,38 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
     var val = widget.surat['catatanVerifikasi']?.toString().trim() ?? '';
     if (val.isEmpty)
       val = widget.surat['catatan_waka']?.toString().trim() ?? '';
-    // Hapus bagian "[Diteruskan kepada: ...]" yang disisipkan BE
     val = val.replaceAll(RegExp(r'\[Diteruskan kepada:[^\]]*\]'), '').trim();
     return val;
   }
 
   // =========================================================
-  // STATE DISPOSISI
+  // DATA READ-ONLY: guru & catatan yang sudah dikirim
+  // =========================================================
+
+  /// Nama-nama guru tujuan disposisi (dari data history)
+  List<String> get _guruTujuan {
+    final raw = widget.surat['diteruskan_ke'];
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw
+          .map((e) {
+            if (e is Map) return e['nama']?.toString() ?? '';
+            return e.toString();
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
+    }
+    return [];
+  }
+
+  /// Catatan waka yang sudah dikirim (dari data history)
+  String get _catatanWakaTerkirim =>
+      widget.surat['catatan_waka_disposisi']?.toString().trim() ??
+      widget.surat['catatan_disposisi']?.toString().trim() ??
+      '';
+
+  // =========================================================
+  // STATE DISPOSISI (hanya dipakai saat isReadOnly = false)
   // =========================================================
 
   final List<String> _selectedGuru = [];
@@ -52,7 +85,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   @override
   void initState() {
     super.initState();
-    _fetchGuruList();
+    if (!widget.isReadOnly) _fetchGuruList();
   }
 
   @override
@@ -62,7 +95,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   }
 
   // =========================================================
-  // FETCH GURU - GET /api/users?role=user
+  // FETCH GURU
   // =========================================================
 
   Future<void> _fetchGuruList() async {
@@ -72,7 +105,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
         queryParameters: {'role': 'user'},
       );
       final List data = res.data['data'] as List? ?? [];
-      debugPrint('GURU LIST SAMPLE: ${data.isNotEmpty ? data.first : "empty"}');
       setState(() {
         _guruList = data.cast<Map<String, dynamic>>();
         _isLoadingGuru = false;
@@ -119,13 +151,22 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
                       _buildCatatan(context, w, h),
                       SizedBox(height: h * 0.02),
                     ],
-                    _buildDisposisiCard(context, w, h),
-                    SizedBox(height: h * 0.02),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: _buildTombolTeruskan(context, w),
-                    ),
-                    SizedBox(height: h * 0.03),
+
+                    // ── READ-ONLY: tampilkan ringkasan disposisi ──
+                    if (widget.isReadOnly) ...[
+                      _buildDisposisiReadOnly(context, w, h),
+                      SizedBox(height: h * 0.03),
+                    ]
+                    // ── EDITABLE: form disposisi + tombol teruskan ──
+                    else ...[
+                      _buildDisposisiCard(context, w, h),
+                      SizedBox(height: h * 0.02),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildTombolTeruskan(context, w),
+                      ),
+                      SizedBox(height: h * 0.03),
+                    ],
                   ],
                 ),
               ),
@@ -165,6 +206,27 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
               ),
             ),
           ),
+          // Badge read-only
+          if (widget.isReadOnly)
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: rf(context, 10),
+                vertical: rf(context, 4),
+              ),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(rf(context, 20)),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Text(
+                'Riwayat',
+                style: TextStyle(
+                  fontSize: rf(context, 11),
+                  color: Colors.grey.shade500,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -281,7 +343,166 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   }
 
   // =========================================================
-  // DISPOSISI CARD
+  // READ-ONLY: ringkasan disposisi yang sudah dikirim
+  // =========================================================
+
+  Widget _buildDisposisiReadOnly(BuildContext context, double w, double h) {
+    final guruList = _guruTujuan;
+    final catatan = _catatanWakaTerkirim;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(rf(context, 20)),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Judul
+          Row(
+            children: [
+              Container(
+                width: rf(context, 4),
+                height: rf(context, 18),
+                decoration: BoxDecoration(
+                  color: AppColors.bluePrimary,
+                  borderRadius: BorderRadius.circular(rf(context, 2)),
+                ),
+              ),
+              SizedBox(width: w * 0.02),
+              Text(
+                'Disposisi ke Guru',
+                style: TextStyle(
+                  fontSize: rf(context, 13),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.bluePrimary,
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: h * 0.016),
+
+          // Label guru tujuan
+          Text(
+            'Guru yang dituju',
+            style: TextStyle(
+              fontSize: rf(context, 12),
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: rf(context, 8)),
+
+          // Chips guru (read-only, tanpa tombol hapus)
+          if (guruList.isEmpty)
+            Text(
+              'Tidak ada data guru',
+              style: TextStyle(
+                fontSize: rf(context, 13),
+                color: Colors.grey.shade400,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else
+            Wrap(
+              spacing: rf(context, 6),
+              runSpacing: rf(context, 6),
+              children: guruList
+                  .map((guru) => _buildGuruChipReadOnly(context, guru))
+                  .toList(),
+            ),
+
+          SizedBox(height: h * 0.016),
+
+          // Catatan waka
+          Row(
+            children: [
+              Container(
+                width: rf(context, 4),
+                height: rf(context, 16),
+                decoration: BoxDecoration(
+                  color: AppColors.bluePrimary,
+                  borderRadius: BorderRadius.circular(rf(context, 2)),
+                ),
+              ),
+              SizedBox(width: w * 0.02),
+              Text(
+                'Catatan untuk guru',
+                style: TextStyle(
+                  fontSize: rf(context, 12),
+                  color: AppColors.bluePrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: rf(context, 8)),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(rf(context, 12)),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(rf(context, 10)),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(
+              catatan.isEmpty ? '-' : catatan,
+              style: TextStyle(
+                fontSize: rf(context, 14),
+                color: catatan.isEmpty
+                    ? Colors.grey.shade400
+                    : Colors.grey.shade800,
+                height: 1.5,
+                fontStyle: catatan.isEmpty
+                    ? FontStyle.italic
+                    : FontStyle.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // CHIP READ-ONLY (tanpa tombol hapus)
+  // =========================================================
+
+  Widget _buildGuruChipReadOnly(BuildContext context, String guru) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: rf(context, 10),
+        vertical: rf(context, 5),
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.bluePrimary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(rf(context, 20)),
+        border: Border.all(color: AppColors.bluePrimary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.person_outline,
+            size: rf(context, 13),
+            color: AppColors.bluePrimary,
+          ),
+          SizedBox(width: rf(context, 4)),
+          Text(
+            guru,
+            style: TextStyle(
+              fontSize: rf(context, 12),
+              color: AppColors.bluePrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================
+  // DISPOSISI CARD (editable)
   // =========================================================
 
   Widget _buildDisposisiCard(BuildContext context, double w, double h) {
@@ -449,7 +670,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
   }
 
   // =========================================================
-  // CHIP
+  // CHIP (editable, ada tombol hapus)
   // =========================================================
 
   Widget _buildGuruChip(BuildContext context, String guru) {
@@ -526,7 +747,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
       return;
     }
 
-    // Map nama guru ke ID
     final guruIds = _selectedGuru
         .map((nama) {
           final guru = _guruList.firstWhere(
@@ -546,8 +766,6 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
     }
 
     try {
-      // FIX: gunakan PUT /api/surat-masuk/:id/teruskan-waka
-      // dengan body { diteruskan_ke: [...], catatan_waka: "..." }
       await _suratMasukRepo.teruskanKeUser(
         widget.surat['id'] as int,
         userIds: guruIds,
@@ -768,7 +986,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
 }
 
 // =========================================================
-// GURU SEARCH DROPDOWN (sama seperti sebelumnya)
+// GURU SEARCH DROPDOWN
 // =========================================================
 
 class _GuruSearchDropdown extends StatefulWidget {

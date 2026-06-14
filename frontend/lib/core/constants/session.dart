@@ -21,34 +21,34 @@ class Session {
   // ── History TU Filter ─────────────────────────────────
   static String historySearchQuery = '';
   static String historyStatusFilter = 'semua';
-  static String historyDateFilter = 'Semua';
-  static String historyActiveChip = 'Semua';
-  static DateTime? historyStartDate = null;
-  static DateTime? historyEndDate = null;
+  static String historyDateFilter = 'Hari ini';
+  static String historyActiveChip = 'Hari ini';
+  static DateTime? historyStartDate = DateTime.now();
+  static DateTime? historyEndDate = DateTime.now();
 
   // ── History Kepsek Filter ─────────────────────────────
   static String kepsekSearchQuery = '';
   static String kepsekJenisFilter = 'semua';
-  static String kepsekDateFilter = 'Semua';
-  static String kepsekActiveChip = 'Semua';
-  static DateTime? kepsekStartDate = null;
-  static DateTime? kepsekEndDate = null;
+  static String kepsekDateFilter = 'Hari ini';
+  static String kepsekActiveChip = 'Hari ini';
+  static DateTime? kepsekStartDate = DateTime.now();
+  static DateTime? kepsekEndDate = DateTime.now();
 
   // ── History Users Filter ───────────────────────────────
   static String userHistorySearchQuery = '';
-  static String userHistoryDateFilter = 'Semua';
-  static String userHistoryActiveChip = 'Semua';
-  static DateTime? userHistoryStartDate = null;
-  static DateTime? userHistoryEndDate = null;
+  static String userHistoryDateFilter = 'Hari ini';
+  static String userHistoryActiveChip = 'Hari ini';
+  static DateTime? userHistoryStartDate = DateTime.now();
+  static DateTime? userHistoryEndDate = DateTime.now();
 
   // ── Reset saat logout ─────────────────────────────────
   static void resetHistoryFilter() {
     historySearchQuery = '';
     historyStatusFilter = 'semua';
-    historyDateFilter = 'Semua';
-    historyActiveChip = 'Semua';
-    historyStartDate = null;
-    historyEndDate = null;
+    historyDateFilter = 'Hari ini';
+    historyActiveChip = 'Hari ini';
+    historyStartDate = DateTime.now();
+    historyEndDate = DateTime.now();
   }
 
   static void resetKepsekFilter() {
