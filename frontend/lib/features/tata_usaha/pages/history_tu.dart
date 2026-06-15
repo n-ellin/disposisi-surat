@@ -223,7 +223,7 @@ class _HistoryTUPageState extends State<HistoryTUPage> {
                 isReadOnly: true,
                 showWaka: false,
                 lampiranUrls: List<String>.from(surat['lampiran'] ?? []),
-                suratId: surat['id'] as int,
+               suratId: (surat['id'] as int?) ?? 0,
               )
             : OutputSuratkeluar(
                 catatan: surat['catatan'] ?? '-',

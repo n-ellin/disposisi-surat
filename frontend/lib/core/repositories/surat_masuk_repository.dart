@@ -42,10 +42,11 @@ class SuratMasukRepository {
     final List raw = res.data['data'] as List? ?? [];
     return raw
         .cast<Map<String, dynamic>>()
+        .where((u) => (u['role'] as String? ?? '') == 'waka')
         .map(
           (u) => {
-            'id': u['id_user'],
-            'nama': u['nama'],
+            'id': (u['id'] as int?) ?? 0,
+            'nama': u['nama'] ?? '',
             'nama_jabatan': u['nama_jabatan'] ?? '',
           },
         )

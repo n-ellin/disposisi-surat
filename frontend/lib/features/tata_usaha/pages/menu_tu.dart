@@ -186,12 +186,7 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
   }
 
   Future<void> _openDetail(Map<String, dynamic> surat) async {
-    final statusCheck = (surat['status'] ?? '').toString().toLowerCase();
-    if (statusCheck == 'diproses' || statusCheck == 'menunggu') {
-      showProcessDialog(context);
-      return;
-    }
-
+    // TU boleh buka detail semua surat tanpa filter status
     final isMasuk = surat['jenisSurat'] == 'Surat Masuk';
     final raw = surat['_raw'];
 
@@ -201,7 +196,7 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
 
         List<Map<String, dynamic>> wakaListData = [];
         try {
-          wakaListData = await _suratMasukRepo.getWakaList(); // ← ganti ini
+          wakaListData = await _suratMasukRepo.getWakaList();
         } catch (e) {
           debugPrint('Error fetch waka: $e');
         }
@@ -215,8 +210,8 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
               isApproved: detail.status?.toLowerCase() == 'disetujui',
               catatan: detail.catatanVerifikasi ?? detail.catatan ?? '',
               wakaList: wakaListData,
-              isReadOnly: false, // ← ubah
-              showWaka: true, // ← ubah
+              isReadOnly: false,
+              showWaka: true,
               lampiranUrls: detail.lampiranUrls,
               suratId: detail.id,
               namaWaka: detail.namaWaka,
@@ -225,7 +220,7 @@ class _TuDashboardPageState extends State<TuDashboardPage> {
           ),
         );
       } else {
-        // ... surat keluar tetap sama
+        // surat keluar — logic kamu yang existing
       }
     } on DioException catch (e) {
       if (!mounted) return;

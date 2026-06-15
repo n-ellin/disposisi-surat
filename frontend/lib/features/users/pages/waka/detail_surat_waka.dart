@@ -767,7 +767,7 @@ class _DetailSuratWakaState extends State<DetailSuratWaka> {
 
     try {
       await _suratMasukRepo.teruskanKeUser(
-        widget.surat['id'] as int,
+        (widget.surat['id'] as int?) ?? 0,
         userIds: guruIds,
         catatanWaka: _catatanDisposisiCtrl.text.trim(),
       );

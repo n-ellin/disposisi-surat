@@ -33,6 +33,20 @@ class _HistoryKepsekPageState extends State<HistoryKepsekPage> {
   @override
   void initState() {
     super.initState();
+    if (Session.kepsekStartDate == null) {
+      final now = DateTime.now();
+      Session.kepsekStartDate = DateTime(now.year, now.month, now.day);
+      Session.kepsekEndDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+      );
+      Session.kepsekActiveChip = 'Hari ini';
+      Session.kepsekDateFilter = 'Hari ini';
+    }
     _loadHistory();
   }
 

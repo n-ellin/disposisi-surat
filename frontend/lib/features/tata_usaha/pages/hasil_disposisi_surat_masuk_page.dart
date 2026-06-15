@@ -12,7 +12,6 @@ class OutputSuratmasuk extends StatefulWidget {
   final List<String> lampiranUrls;
   final int suratId;
   final bool showWaka;
-
   final String? namaWaka;
   final String? jabatanWaka;
 
@@ -57,13 +56,12 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
           wakaId: _selectedWakaID!,
         );
       }
-
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Gagal: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal: $e")),
+      );
     }
   }
 
@@ -91,9 +89,9 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
         : (_surat?.lampiranUrls ?? []);
 
     if (urls.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Tidak ada lampiran")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tidak ada lampiran")),
+      );
       return;
     }
 
@@ -117,7 +115,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER
             Padding(
               padding: EdgeInsets.fromLTRB(w * 0.05, h * 0.025, w * 0.05, 0),
               child: Row(
@@ -142,9 +139,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                 ],
               ),
             ),
-
             SizedBox(height: h * 0.025),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: w * 0.05),
@@ -165,7 +160,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                       ),
                       SizedBox(height: h * 0.018),
                     ],
-
                     _sectionCard(
                       w: w,
                       children: [
@@ -174,11 +168,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                         _textArea(value: widget.catatan, w: w, h: h),
                       ],
                     ),
-
                     SizedBox(height: h * 0.025),
-
-                    // TOMBOL — rata kanan sejajar card
-                    // SESUDAH
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: w * 0.04),
                       child: Row(
@@ -189,13 +179,9 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                             height: 42,
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(
-                                  color: AppColors.bluePrimary,
-                                ),
+                                side: const BorderSide(color: AppColors.bluePrimary),
                                 foregroundColor: AppColors.bluePrimary,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -204,10 +190,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                               icon: const Icon(Icons.remove_red_eye, size: 18),
                               label: const Text(
                                 "Lihat Surat",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                             ),
                           ),
@@ -221,9 +204,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                                   backgroundColor: AppColors.bluePrimary,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
                                   ),
@@ -246,7 +227,6 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
                         ],
                       ),
                     ),
-
                     SizedBox(height: h * 0.03),
                   ],
                 ),
@@ -285,10 +265,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
             const SizedBox(height: 2),
             Text(
               jabatan,
-              style: TextStyle(
-                fontSize: rf(12, w),
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(fontSize: rf(12, w), color: Colors.grey.shade600),
             ),
           ],
         ],
@@ -313,12 +290,13 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
 
     return Column(
       children: widget.wakaList.map((waka) {
-        final selected = _selectedWakaID == waka['id'];
+        final wakaId = (waka['id'] as int?) ?? 0;
+        final selected = _selectedWakaID == wakaId;
         final jabatan = waka['nama_jabatan'] ?? '-';
         final deskripsi = _jabatanDeskripsi(jabatan);
 
         return GestureDetector(
-          onTap: () => setState(() => _selectedWakaID = waka['id']),
+          onTap: () => setState(() => _selectedWakaID = wakaId),
           child: Container(
             margin: EdgeInsets.only(bottom: h * 0.01),
             padding: EdgeInsets.symmetric(
@@ -337,11 +315,8 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
               children: [
                 Radio<int>(
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: const VisualDensity(
-                    horizontal: -4,
-                    vertical: -4,
-                  ),
-                  value: waka['id'],
+                  visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                  value: wakaId,
                   groupValue: _selectedWakaID,
                   activeColor: AppColors.bluePrimary,
                   onChanged: (value) => setState(() => _selectedWakaID = value),
@@ -422,11 +397,7 @@ class _OutputSuratmasukState extends State<OutputSuratmasuk> {
     );
   }
 
-  Widget _textArea({
-    required String value,
-    required double w,
-    required double h,
-  }) {
+  Widget _textArea({required String value, required double w, required double h}) {
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(minHeight: h * 0.1),

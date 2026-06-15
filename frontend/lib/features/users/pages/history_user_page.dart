@@ -40,6 +40,20 @@ class _HistoryUsersPageState extends State<HistoryUsersPage> {
   @override
   void initState() {
     super.initState();
+    if (Session.userHistoryStartDate == null) {
+      final now = DateTime.now();
+      Session.userHistoryStartDate = DateTime(now.year, now.month, now.day);
+      Session.userHistoryEndDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        23,
+        59,
+        59,
+      );
+      Session.userHistoryActiveChip = 'Hari ini';
+      Session.userHistoryDateFilter = 'Hari ini';
+    }
     _loadHistory();
   }
 

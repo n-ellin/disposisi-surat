@@ -352,7 +352,7 @@ class _HomeState extends State<Home> {
 
         List<Map<String, dynamic>> wakaListData = [];
         try {
-          wakaListData = await _userRepo.getList(role: 'waka');
+          wakaListData = await _suratMasukRepo.getWakaList();
           debugPrint('WAKA LIST: $wakaListData');
         } catch (e) {
           debugPrint('Error fetch waka: $e');
